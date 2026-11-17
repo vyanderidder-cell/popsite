@@ -1,4 +1,4 @@
-// PopSite : enregistre une inscription ou une demande « Préviens-moi » (Vercel Blob, accès privé à la lecture côté serveur)
+// Devanture : enregistre une inscription ou une demande « Préviens-moi » (Vercel Blob, accès privé à la lecture côté serveur)
 import { put } from '@vercel/blob';
 
 const seen = new Map();

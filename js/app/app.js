@@ -1,4 +1,4 @@
-/* PopSite — l'appli : routeur, état local, toutes les pages */
+/* Devanture — l'appli : routeur, état local, toutes les pages */
 import { GROUPS, GROUP_LABEL, kindInfo } from './data.js';
 import { geocode, scan as runScan, NET, phoneOf, emailOf, socialOf, safeUrl } from './osm.js';
 import { buildMockup, parseHours, STYLES, esc as E, slug, DAYS_FR } from './mockup.js';
@@ -96,7 +96,7 @@ function needAccount(why) {
 }
 function paywall(kind) {
   const txt = { scans: ['Ton scan gratuit est utilisé.', 'Avec Pro, tu lances 60 scans par mois, sur toutes les villes que tu veux.'], maq: ['Ta maquette gratuite est faite.', 'Avec Pro, tu fais popper 100 maquettes par mois, dans les 3 styles.'], list: ['Ce commerce est réservé à Pro.', 'La version gratuite montre les 3 meilleurs commerces de chaque scan. Pro les débloque tous.'] }[kind];
-  modal(`<p class="eyebrow">PopSite Pro · 14,99 € par mois</p><h2>${txt[0]}</h2><p>${txt[1]}</p>
+  modal(`<p class="eyebrow">Devanture Pro · 14,99 € par mois</p><h2>${txt[0]}</h2><p>${txt[1]}</p>
   <div class="ap-row">${S.trialUsed ? '' : '<button class="btn" type="button" data-trial>Essayer Pro 7 jours</button>'}<a class="btn ${S.trialUsed ? '' : 'ghost'}" href="#tarifs" data-close>Voir les tarifs</a></div>`,
     (m, close) => { const b = m.querySelector('[data-trial]'); if (b) b.onclick = () => { close(); startTrial(); }; });
 }
@@ -119,13 +119,13 @@ function payModal() {
 /* ---------------- coquille ---------------- */
 ROOT.innerHTML = `
 <header class="ap-top">
-  <button class="mark" type="button" data-act="home" aria-label="Retour à l'accueil PopSite"><i aria-hidden="true"></i>PopSite</button>
+  <button class="mark" type="button" data-act="home" aria-label="Retour à l'accueil Devanture"><i aria-hidden="true"></i>Devanture</button>
   <nav class="ap-nav" aria-label="Appli"><a href="#radar" data-r="radar">Radar</a><a href="#suivi" data-r="suivi">Mes commerces</a><a href="#aide" data-r="aide">Aide</a><a href="#tarifs" data-r="tarifs">Tarifs</a></nav>
   <a class="ap-plan" id="ap-plan" href="#tarifs">Gratuit</a>
   <span id="ap-me"></span>
 </header>
 <main id="ap-view"></main>
-<footer class="ap-foot"><span>PopSite</span><a href="#exemples">Exemples</a><a href="#aide">Aide</a><a href="#tarifs">Tarifs</a><a href="#mentions">Mentions légales</a><span>Données © contributeurs OpenStreetMap</span></footer>
+<footer class="ap-foot"><span>Devanture</span><a href="#exemples">Exemples</a><a href="#aide">Aide</a><a href="#tarifs">Tarifs</a><a href="#mentions">Mentions légales</a><span>Données © contributeurs OpenStreetMap</span></footer>
 <nav class="ap-tabbar" aria-label="Appli"><a href="#radar" data-r="radar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>Radar</a><a href="#suivi" data-r="suivi"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16l-1.5-4h-13z"/><path d="M5 9v10h14V9"/><path d="M10 19v-5h4v5"/></svg>Commerces</a><a href="#aide" data-r="aide"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><path d="M12 16.6v.1"/></svg>Aide</a><a href="#compte" data-r="compte"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1-3.6 3.7-5.3 7-5.3s6 1.7 7 5.3"/></svg>Compte</a></nav>
 <div class="ap-toast" role="status" aria-live="polite"></div>`;
 const VIEW = $('#ap-view');
@@ -161,7 +161,7 @@ function render(r) {
   else if (base === 'exemples') vExemples();
   else if (base === 'gestion') vGestion();
   if (changed && !pendingQ) { const h = VIEW.querySelector('h1'); if (h) { h.tabIndex = -1; try { h.focus({ preventScroll: true }); } catch (e) { } } }
-  document.title = ({ radar: 'Radar', fiche: 'Fiche commerce', suivi: 'Mes commerces', tarifs: 'Tarifs', aide: 'Aide', connexion: 'Connexion', inscription: 'Inscription', compte: 'Mon compte', mentions: 'Mentions légales', exemples: 'Exemples de maquettes', gestion: 'Gestion' }[base] || 'PopSite') + ' · PopSite';
+  document.title = ({ radar: 'Radar', fiche: 'Fiche commerce', suivi: 'Mes commerces', tarifs: 'Tarifs', aide: 'Aide', connexion: 'Connexion', inscription: 'Inscription', compte: 'Mon compte', mentions: 'Mentions légales', exemples: 'Exemples de maquettes', gestion: 'Gestion' }[base] || 'Devanture') + ' · Devanture';
 }
 function openApp(r) {
   if (!ROOT.classList.contains('on')) { ROOT.classList.add('on'); document.body.classList.add('app-open'); window.__appOpen = true; }
@@ -171,7 +171,7 @@ function closeApp(r) {
   if (!ROOT.classList.contains('on')) return;
   if (cleanup) { cleanup(); cleanup = null; }
   cur = ''; ROOT.classList.remove('on'); document.body.classList.remove('app-open'); window.__appOpen = false;
-  document.title = 'PopSite · Le radar à commerces sans site';
+  document.title = 'Devanture · Le radar à commerces sans site';
   window.dispatchEvent(new Event('popsite:landing'));
   if (r === 'top' || !r) window.scrollTo(0, 0);
   else { const el = document.getElementById(r); if (el) requestAnimationFrame(() => el.scrollIntoView()); }
@@ -197,7 +197,7 @@ function vRadar() {
     <div class="rd-search">
       <p class="eyebrow">Radar</p>
       <h1 class="ap-h1">Où on cherche ?</h1>
-      ${NET.blocked ? '<p class="ap-beta"><b>Aperçu :</b> ici, la page ne peut pas joindre OpenStreetMap, alors tu vois le village de démo. Une fois PopSite en ligne, le radar scanne ta vraie ville.</p>' : ''}
+      ${NET.blocked ? '<p class="ap-beta"><b>Aperçu :</b> ici, la page ne peut pas joindre OpenStreetMap, alors tu vois le village de démo. Une fois Devanture en ligne, le radar scanne ta vraie ville.</p>' : ''}
       <form id="rd-form" novalidate>
         <div class="rd-where">
           <label class="ap-field" for="rd-q">Ville ou code postal</label>
@@ -302,7 +302,7 @@ async function doScan(radar) {
   }
   RS.busy = false; const b = $('#rd-go'); if (b) b.disabled = false;
   paintQuota(); paintRes(radar);
-  if (NET.blocked && !$('.rd-search .ap-beta')) { const f = $('#rd-form'); if (f) f.insertAdjacentHTML('beforebegin', '<p class="ap-beta"><b>Aperçu :</b> ici, la page ne peut pas joindre OpenStreetMap, alors tu vois le village de démo. Une fois PopSite en ligne, le radar scanne ta vraie ville.</p>'); }
+  if (NET.blocked && !$('.rd-search .ap-beta')) { const f = $('#rd-form'); if (f) f.insertAdjacentHTML('beforebegin', '<p class="ap-beta"><b>Aperçu :</b> ici, la page ne peut pas joindre OpenStreetMap, alors tu vois le village de démo. Une fois Devanture en ligne, le radar scanne ta vraie ville.</p>'); }
 }
 function paintRes(radar) {
   const box = $('#rd-res'); if (!box) return;
@@ -363,7 +363,7 @@ function defaultsFor(L) {
 }
 function model(L) {
   const f = L.f, info = kindInfo(L.kind);
-  return { name: L.name, kindLabel: info.label, group: info.g, city: f.city, addr: f.addr, phone: f.phone, email: f.email, social: safeUrl(f.social), hours: f.hours, tagline: f.tagline, intro: f.intro, services: f.services, rating: f.rating, reviews: f.reviews, cta: f.cta, style: f.style, lat: L.lat, lon: L.lon, by: f.by ? ((S.user && S.user.prenom) || 'PopSite') : '' };
+  return { name: L.name, kindLabel: info.label, group: info.g, city: f.city, addr: f.addr, phone: f.phone, email: f.email, social: safeUrl(f.social), hours: f.hours, tagline: f.tagline, intro: f.intro, services: f.services, rating: f.rating, reviews: f.reviews, cta: f.cta, style: f.style, lat: L.lat, lon: L.lon, by: f.by ? ((S.user && S.user.prenom) || 'Devanture') : '' };
 }
 let FTAB = 'mq';
 function vFiche(id) {
@@ -426,7 +426,7 @@ function pMaquette(L) {
   if (!L.f) {
     const left = Math.max(0, lim().maq - u.maq);
     P.innerHTML = `<div class="mq-lock" style="border-color:var(--line);background:none"><p class="eyebrow">Étape 1</p><h2 class="ap-h2">Fais popper son site.</h2>
-    <p class="ap-sub">PopSite reprend le nom, l'adresse, le téléphone et les horaires trouvés sur OpenStreetMap, choisit les textes selon l'activité et monte une maquette complète. Tu ajustes tout ensuite.</p>
+    <p class="ap-sub">Devanture reprend le nom, l'adresse, le téléphone et les horaires trouvés sur OpenStreetMap, choisit les textes selon l'activité et monte une maquette complète. Tu ajustes tout ensuite.</p>
     <div class="ap-row"><button class="btn" type="button" id="mq-go">Faire popper la maquette</button><span class="rd-quota">${isPro() ? `<b>${left}</b> maquettes restantes ce mois-ci` : `Gratuit · <b>${left}</b> maquette restante`}</span></div></div>`;
     $('#mq-go').onclick = () => {
       if (!logged()) { needAccount('Crée ton compte pour faire popper ta maquette.'); return; }
@@ -581,7 +581,7 @@ function vSuivi() {
   </div>`;
   const csv = () => 'Nom;Activité;Ville;Adresse;Téléphone;E-mail;Statut;Relance;Notes;Création;Mensuel;Mis à jour\n' + leads.map(l => { const f = l.f || {}, p = l.sale || S.prefs.price; return [l.name, kindInfo(l.kind).label, f.city || l.city, f.addr || l.addr, f.phone || phoneOf(l.tags || {}), f.email || emailOf(l.tags || {}), ST_LABEL[l.status], l.next || '', l.note || '', p.creation, p.mensuel, new Date(l.updated).toLocaleDateString('fr-FR')].map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(';'); }).join('\n');
   const c = $('#sv-csv'); if (c) c.onclick = () => copy(csv(), 'Suivi copié (colle-le dans un tableur)');
-  const d = $('#sv-dl'); if (d) d.onclick = async () => { if (await download('popsite-suivi.csv', '\ufeff' + csv())) toast('Suivi téléchargé'); };
+  const d = $('#sv-dl'); if (d) d.onclick = async () => { if (await download('devanture-suivi.csv', '\ufeff' + csv())) toast('Suivi téléchargé'); };
 }
 /* ================= TARIFS ================= */
 function vTarifs() {
@@ -601,7 +601,7 @@ function vTarifs() {
   <div style="display:flex;flex-direction:column;gap:20px"><h2 class="ap-h2">Questions sur l'abonnement</h2>
   <div class="faq">
     <details open><summary>Je peux arrêter quand je veux ?</summary><p>Oui. Pro est sans engagement : tu arrêtes en un clic et tu repasses en gratuit à la fin du mois payé.</p></details>
-    <details><summary>PopSite prend une commission sur mes ventes ?</summary><p>Non. Tu fixes ton prix, tu encaisses toi-même, PopSite ne touche rien sur tes sites vendus.</p></details>
+    <details><summary>Devanture prend une commission sur mes ventes ?</summary><p>Non. Tu fixes ton prix, tu encaisses toi-même, Devanture ne touche rien sur tes sites vendus.</p></details>
     <details><summary>Les scans non utilisés sont reportés ?</summary><p>Non, les compteurs repartent à zéro le 1er de chaque mois.</p></details>
     <details><summary>Comment je paie ?</summary><p>Par carte, avec un paiement sécurisé. Il arrive très bientôt ; en attendant, l'essai Pro de 7 jours te laisse tout tester.</p></details>
   </div></div></div>`;
@@ -623,7 +623,7 @@ function vAide() {
       <ol class="hp-flow"><li>Scanne ta zone</li><li>Vérifie sur Google</li><li>Fais popper la maquette</li><li>Passe en boutique</li><li>Relance à J+5</li><li>Colle le prompt dans ton IA</li><li>Mets en ligne</li></ol>
       <p>Le passage en boutique marche bien mieux qu'un mail : le gérant voit son propre site sur ton téléphone, en vrai. Garde le mail pour prévenir ou pour relancer.</p></section>
     <section id="h-regles"><h2 class="ap-h2">Démarcher dans les règles</h2>
-      <ul><li>Entre professionnels, la CNIL autorise la prospection par e-mail sans accord préalable si le message concerne l'activité de la personne. Présente-toi clairement et offre toujours un moyen simple de ne plus être contacté : les mails de PopSite finissent par « répondez stop ».</li>
+      <ul><li>Entre professionnels, la CNIL autorise la prospection par e-mail sans accord préalable si le message concerne l'activité de la personne. Présente-toi clairement et offre toujours un moyen simple de ne plus être contacté : les mails de Devanture finissent par « répondez stop ».</li>
       <li>Au téléphone, appelle le numéro du commerce, pendant ses horaires, et n'insiste pas après un non.</li>
       <li>Pour encaisser, il te faut un statut. La micro-entreprise est le plus simple à créer, sur le site officiel autoentrepreneur.urssaf.fr.</li>
       <li>N'invente jamais d'avis, de note ou de chiffre dans une maquette.</li></ul></section>
@@ -635,7 +635,7 @@ function vAide() {
       <div class="faq">
         <details><summary>Pourquoi le radar ne trouve rien dans mon village ?</summary><p>OpenStreetMap est moins rempli à la campagne. Élargis le rayon à 3 ou 5 km, ou essaie la ville voisine.</p></details>
         <details><summary>Le scan dit que le serveur est saturé.</summary><p>Les serveurs publics d'OpenStreetMap sont partagés par tout le monde. Patiente une minute, ou réduis le rayon.</p></details>
-        <details><summary>Où sont gardées mes données ?</summary><p>Pour l'instant, sur ton appareil uniquement. Les comptes en ligne, qui synchronisent ton téléphone et ton ordinateur, arrivent bientôt.</p></details>
+        <details><summary>Où sont gardées mes données ?</summary><p>Ton prénom et ton e-mail sont gardés sur notre serveur pour ton compte. Tes scans, maquettes et notes restent sur ton appareil ; la synchronisation entre téléphone et ordinateur arrive bientôt.</p></details>
         <details><summary>Le commerce n'a pas d'e-mail.</summary><p>C'est le cas le plus courant, et c'est tant mieux : passe le voir avec la maquette en mode boutique.</p></details>
       </div></section>
   </div></div></div>`;
@@ -651,7 +651,7 @@ function vAuth(kind) {
   <div class="au-art"><div class="scope" aria-hidden="true">${dots}</div><p class="eyebrow" style="position:relative">${up ? 'Compte gratuit' : 'Bon retour'}</p><h2 class="ap-h1">${up ? 'Ton radar t\'attend.' : 'On reprend où tu en étais.'}</h2><p>${up ? '1 scan, 1 maquette, les scripts de prospection. Sans carte bancaire.' : 'Tes commerces, tes maquettes et ton suivi.'}</p></div>
   <div class="au-form"><form id="au-f" novalidate>
     <h1 class="ap-h2">${up ? 'Créer mon compte' : 'Connexion'}</h1>
-    <p class="ap-beta"><b>Bêta :</b> ton compte reste sur cet appareil pour l'instant. La synchronisation en ligne arrive bientôt.</p>
+    <p class="ap-beta"><b>Bêta :</b> ton suivi et tes maquettes restent sur cet appareil pour l'instant. Ton prénom et ton e-mail nous servent à gérer ton compte et à te prévenir des nouveautés.</p>
     ${up ? '<label class="ap-field">Prénom<input class="ap-input" name="prenom" autocomplete="given-name" required></label>' : ''}
     <label class="ap-field">E-mail<input class="ap-input" name="email" type="email" autocomplete="email" required></label>
     ${up ? `<label class="ap-field">Ta ville (facultatif)<input class="ap-input" name="ville" autocomplete="address-level2"></label>
@@ -705,7 +705,7 @@ function vCompte() {
       <div class="ap-row"><label class="ap-field" style="flex:1">Création (€)<input class="ap-input" name="creation" inputmode="numeric" value="${E(S.prefs.price.creation)}"></label><label class="ap-field" style="flex:1">Par mois (€)<input class="ap-input" name="mensuel" inputmode="numeric" value="${E(S.prefs.price.mensuel)}"></label></div>
       <button class="btn small" type="submit" style="align-self:flex-start">Enregistrer</button></form>
     <div class="ap-box"><h2 class="ap-h2">Mode test</h2><p class="ap-sub" style="font-size:15px">Le paiement n'est pas encore branché. Active Pro sur cet appareil pour tout essayer.</p>
-      <label class="switch">PopSite Pro en mode test<input type="checkbox" id="ac-test" ${S.plan === 'pro' ? 'checked' : ''}></label></div>
+      <label class="switch">Devanture Pro en mode test<input type="checkbox" id="ac-test" ${S.plan === 'pro' ? 'checked' : ''}></label></div>
     <div class="ap-box full"><h2 class="ap-h2">Tes données</h2><p class="ap-sub" style="font-size:15px">Tout est gardé dans ce navigateur. Exporte-les avant de changer d'appareil.</p>
       <div class="ap-row"><button class="btn ghost small" type="button" id="ac-exp">Copier mes données</button><button class="btn ghost small" type="button" id="ac-out">Me déconnecter</button><button class="ap-link" type="button" id="ac-del" style="color:#ff8f7a">Tout effacer</button></div></div>
   </div></div>`;
@@ -724,11 +724,11 @@ function vCompte() {
 function vMentions() {
   VIEW.innerHTML = `<div class="ap-wrap pg"><div style="display:flex;flex-direction:column;gap:12px"><p class="eyebrow">Légal</p><h1 class="ap-h1">Mentions légales et confidentialité.</h1></div>
   <div class="lg">
-    <section><h2 class="ap-h2">Éditeur</h2><p>PopSite est édité par <span class="ph">[Nom et prénom ou raison sociale]</span>, <span class="ph">[statut, SIRET]</span>, <span class="ph">[adresse]</span>. Contact : <span class="ph">[adresse e-mail]</span>. Directeur de la publication : <span class="ph">[nom]</span>.</p></section>
+    <section><h2 class="ap-h2">Éditeur</h2><p>Devanture est édité par <span class="ph">[Nom et prénom ou raison sociale]</span>, <span class="ph">[statut, SIRET]</span>, <span class="ph">[adresse]</span>. Contact : <span class="ph">[adresse e-mail]</span>. Directeur de la publication : <span class="ph">[nom]</span>.</p></section>
     <section><h2 class="ap-h2">Hébergement</h2><p>Le site est hébergé par <span class="ph">[nom de l'hébergeur, adresse, téléphone]</span>.</p></section>
     <section><h2 class="ap-h2">Données des commerces</h2><p>Les commerces affichés viennent d'OpenStreetMap, © les contributeurs d'OpenStreetMap, sous licence ODbL. Le géocodage des villes utilise le service de la Géoplateforme de l'IGN, et Nominatim en secours.</p></section>
-    <section><h2 class="ap-h2">Tes données</h2><ul><li>Pendant la bêta, ton compte, tes scans, tes maquettes et tes notes sont enregistrés uniquement dans ton navigateur. Aucun serveur PopSite ne les reçoit.</li><li>Quand tu lances un scan, le nom de la ville et ses coordonnées sont envoyés aux services OpenStreetMap et IGN pour obtenir les résultats.</li><li>PopSite n'utilise ni cookie publicitaire ni outil de suivi.</li><li>Tu peux tout exporter ou tout effacer depuis ton compte, à tout moment.</li></ul></section>
-    <section><h2 class="ap-h2">Conditions d'utilisation</h2><ul><li>PopSite t'aide à repérer des commerces et à préparer des maquettes. Tu restes responsable de ta prospection et du respect des règles qui s'y appliquent.</li><li>Les maquettes sont des propositions : ne publie jamais un site sans l'accord du commerçant, et n'y mets aucun avis ni chiffre inventé.</li><li>L'abonnement Pro est sans engagement.</li></ul></section>
+    <section><h2 class="ap-h2">Tes données</h2><ul><li>Quand tu crées ton compte ou que tu demandes à être prévenu de l'offre Pro, ton prénom, ton e-mail et ta ville sont envoyés au serveur de Devanture (hébergé par Vercel) pour gérer ton compte et te tenir informé. Ils ne sont ni vendus ni partagés.</li><li>Tes scans, tes maquettes, ton suivi et tes notes restent enregistrés dans ton navigateur uniquement.</li><li>Quand tu lances un scan, le nom de la ville et ses coordonnées sont envoyés aux services OpenStreetMap et IGN pour obtenir les résultats.</li><li>Devanture n'utilise ni cookie publicitaire ni outil de suivi ; la mesure d'audience est anonyme et sans cookie.</li><li>Pour consulter ou supprimer tes données, écris à <span class="ph">[adresse e-mail de contact]</span>. Tu peux aussi tout effacer sur cet appareil depuis ton compte.</li></ul></section>
+    <section><h2 class="ap-h2">Conditions d'utilisation</h2><ul><li>Devanture t'aide à repérer des commerces et à préparer des maquettes. Tu restes responsable de ta prospection et du respect des règles qui s'y appliquent.</li><li>Les maquettes sont des propositions : ne publie jamais un site sans l'accord du commerçant, et n'y mets aucun avis ni chiffre inventé.</li><li>L'abonnement Pro est sans engagement.</li></ul></section>
   </div></div>`;
 }
 

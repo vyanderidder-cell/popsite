@@ -1,4 +1,4 @@
-// PopSite : liste des inscrits, réservée à qui a la clé ADMIN_KEY
+// Devanture : liste des inscrits, réservée à qui a la clé ADMIN_KEY
 import { list } from '@vercel/blob';
 
 export default async function handler(req, res) {

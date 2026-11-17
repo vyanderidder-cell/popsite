@@ -1,7 +1,7 @@
-PopSite est en ligne : https://popsite-pi.vercel.app
+Devanture est en ligne : https://popsite-pi.vercel.app
 Chaque push sur GitHub (vyanderidder-cell/popsite, branche main) redéploie le site automatiquement sur Vercel.
 
-PopSite — mettre le site en ligne (gratuit, 2 minutes)
+Devanture — mettre le site en ligne (gratuit, 2 minutes)
 
 1. Dézippe ce dossier.
 2. Va sur https://app.netlify.com/drop (crée un compte gratuit si besoin).

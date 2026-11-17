@@ -1,4 +1,4 @@
-/* PopSite — carte radar en canvas : rues OpenStreetMap, balayage, commerces sans site en ambre */
+/* Devanture — carte radar en canvas : rues OpenStreetMap, balayage, commerces sans site en ambre */
 
 const AMBER = '#ffb23e', ICE = '#7fe0ff';
 

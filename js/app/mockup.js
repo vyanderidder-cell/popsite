@@ -1,4 +1,4 @@
-/* PopSite — générateur de maquette : un site vitrine complet, autonome (un seul fichier HTML) */
+/* Devanture — générateur de maquette : un site vitrine complet, autonome (un seul fichier HTML) */
 
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const DAYS_FR = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];

@@ -1,4 +1,4 @@
-/* PopSite — recherche réelle : géocodage (Géoplateforme IGN, repli Nominatim) et commerces OpenStreetMap (Overpass) */
+/* Devanture — recherche réelle : géocodage (Géoplateforme IGN, repli Nominatim) et commerces OpenStreetMap (Overpass) */
 import { kindOf, kindInfo, demoScan, DEMO_LABEL } from './data.js';
 
 export const NET = { blocked: false };

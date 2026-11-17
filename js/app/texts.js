@@ -1,4 +1,4 @@
-/* PopSite — textes de prospection et prompt de construction */
+/* Devanture — textes de prospection et prompt de construction */
 import { STYLES, DAYS_FR, slug } from './mockup.js';
 
 const SCHEMA = {

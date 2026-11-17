@@ -1,4 +1,4 @@
-/* PopSite — catalogue des activités, groupes et village de démonstration */
+/* Devanture — catalogue des activités, groupes et village de démonstration */
 
 export const GROUPS = [
   { id: 'resto', label: 'Restauration' },

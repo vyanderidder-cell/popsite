@@ -1,4 +1,4 @@
-/* PopSite — l'appli. Même nuit, même ambre, même radar que l'accueil 3D. */
+/* Devanture — l'appli. Même nuit, même ambre, même radar que l'accueil 3D. */
 body.app-open{overflow:hidden}
 body.app-open .hud,body.app-open .rail,body.app-open .cursor,body.app-open .vignette{display:none!important}
 #app{position:fixed;inset:0;z-index:30;display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--night);color:var(--ivory);-webkit-overflow-scrolling:touch}

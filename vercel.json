@@ -2,7 +2,7 @@
   "cleanUrls": true,
   "headers": [
     {
-      "source": "/(kit|pk|c|lib|img)/(.*)",
+      "source": "/img/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
