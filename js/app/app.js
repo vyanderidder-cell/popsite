@@ -4,9 +4,10 @@ import { geocode, scan as runScan, NET, phoneOf, emailOf, socialOf, safeUrl } fr
 import { buildMockup, parseHours, STYLES, esc as E, slug, DAYS_FR } from './mockup.js';
 import { prospect, buildPrompt } from './texts.js';
 import { createRadar } from './radar.js';
+import { shareUrl, siteBase, qrSvg } from './share.js';
 
 const ROOT = document.getElementById('app');
-const ROUTES = ['radar', 'suivi', 'tarifs', 'aide', 'connexion', 'inscription', 'compte', 'mentions'];
+const ROUTES = ['radar', 'suivi', 'tarifs', 'aide', 'connexion', 'inscription', 'compte', 'mentions', 'exemples', 'gestion'];
 const isAppRoute = h => ROUTES.includes(h) || /^fiche-[a-z]\d+$/.test(h);
 const route = () => { try { return decodeURIComponent(location.hash.slice(1)); } catch (e) { return ''; } };
 window.__appOpen = isAppRoute(route());
@@ -50,6 +51,13 @@ const webBadge = w => w === 'social' ? '<span class="ap-badge social">Réseaux s
 const ago = t => { const s = (Date.now() - t) / 1000; return s < 60 ? 'à l\'instant' : s < 3600 ? 'il y a ' + Math.round(s / 60) + ' min' : s < 86400 ? 'il y a ' + Math.round(s / 3600) + ' h' : 'il y a ' + Math.round(s / 86400) + ' j'; };
 const isTarget = it => it.web === 'none' || it.web === 'social';
 
+const ONLINE = !window.claude && /^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname);
+function sendLead(d) { if (!ONLINE) return; try { fetch('/api/inscription', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d), keepalive: true }).catch(() => { }); } catch (e) { } }
+if (ONLINE) { const va = document.createElement('script'); va.defer = true; va.src = '/_vercel/insights/script.js'; document.head.appendChild(va); }
+const today = () => new Date().toISOString().slice(0, 10);
+const plusDays = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+const frDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '';
+const dues = () => Object.values(S.leads).filter(l => ['montree', 'a_relancer'].includes(l.status) && l.next && l.next <= today());
 let toastT = 0;
 function toast(msg) { const t = $('.ap-toast'); if (!t) return; t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2400); }
 async function copy(text, okMsg) {
@@ -63,10 +71,10 @@ async function copy(text, okMsg) {
 let DL = null;
 if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { DL = d; if (d) document.querySelectorAll('[data-dl]').forEach(b => { b.hidden = false; }); }).catch(() => { });
 const canDownload = () => !window.claude || !!DL;
-async function download(name, text) {
+async function download(name, text, type) {
   if (DL) { try { await DL.save({ filename: name, data: text }); return true; } catch (e) { toast('Téléchargement annulé'); return false; } }
   try {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/html;charset=utf-8' })); a.download = name;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || (/\.csv$/.test(name) ? 'text/csv;charset=utf-8' : 'text/html;charset=utf-8') })); a.download = name;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); return true;
   } catch (e) { toast('Téléchargement impossible ici : utilise « Copier le HTML »'); return false; }
 }
@@ -98,9 +106,14 @@ function startTrial() {
   S.trialUsed = true; S.trialUntil = Date.now() + 7 * 864e5; save(true); paintTop(); toast('Pro activé pour 7 jours'); render(route());
 }
 function payModal() {
-  modal(`<p class="eyebrow">Passer Pro</p><h2>Le paiement en ligne arrive très vite.</h2><p>On branche le paiement sécurisé dans les prochains jours. En attendant, ${S.trialUsed ? 'ton essai est déjà utilisé : tu peux activer Pro en mode test depuis ton compte.' : 'tu peux tester Pro gratuitement pendant 7 jours.'}</p>
-  <div class="ap-row">${S.trialUsed ? '<a class="btn" href="#compte" data-close>Aller à mon compte</a>' : '<button class="btn" type="button" data-trial>Essayer Pro 7 jours</button>'}<button class="btn ghost" type="button" data-close>Fermer</button></div>`,
-    (m, close) => { const b = m.querySelector('[data-trial]'); if (b) b.onclick = () => { close(); startTrial(); }; });
+  modal(`<p class="eyebrow">Passer Pro</p><h2>Le paiement en ligne arrive très vite.</h2><p>On branche le paiement sécurisé dans les prochains jours. Laisse ton e-mail : tu seras prévenu en premier${S.trialUsed ? '' : ', et en attendant tu peux tester Pro gratuitement pendant 7 jours'}.</p>
+  <form class="ap-row" id="pm-f" novalidate><input class="ap-input" style="flex:1 1 200px" type="email" name="email" placeholder="ton@email.fr" value="${E((S.user && S.user.email) || '')}" aria-label="Ton e-mail"><button class="btn" type="submit">Préviens-moi</button></form>
+  <p class="au-err" id="pm-err" role="alert"></p>
+  <div class="ap-row">${S.trialUsed ? '<a class="btn ghost" href="#compte" data-close>Aller à mon compte</a>' : '<button class="btn ghost" type="button" data-trial>Essayer Pro 7 jours</button>'}<button class="ap-link" type="button" data-close>Fermer</button></div>`,
+    (m, close) => {
+      const b = m.querySelector('[data-trial]'); if (b) b.onclick = () => { close(); startTrial(); };
+      m.querySelector('#pm-f').addEventListener('submit', e => { e.preventDefault(); const em = String(new FormData(e.target).get('email') || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { m.querySelector('#pm-err').textContent = 'Cette adresse n\'a pas l\'air valide.'; return; } sendLead({ email: em, prenom: (S.user && S.user.prenom) || '', source: 'pro' }); S.proWait = em; save(true); close(); toast('C\'est noté, tu seras prévenu'); });
+    });
 }
 
 /* ---------------- coquille ---------------- */
@@ -112,13 +125,15 @@ ROOT.innerHTML = `
   <span id="ap-me"></span>
 </header>
 <main id="ap-view"></main>
-<footer class="ap-foot"><span>PopSite</span><a href="#aide">Aide</a><a href="#tarifs">Tarifs</a><a href="#mentions">Mentions légales</a><span>Données © contributeurs OpenStreetMap</span></footer>
+<footer class="ap-foot"><span>PopSite</span><a href="#exemples">Exemples</a><a href="#aide">Aide</a><a href="#tarifs">Tarifs</a><a href="#mentions">Mentions légales</a><span>Données © contributeurs OpenStreetMap</span></footer>
 <nav class="ap-tabbar" aria-label="Appli"><a href="#radar" data-r="radar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>Radar</a><a href="#suivi" data-r="suivi"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16l-1.5-4h-13z"/><path d="M5 9v10h14V9"/><path d="M10 19v-5h4v5"/></svg>Commerces</a><a href="#aide" data-r="aide"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><path d="M12 16.6v.1"/></svg>Aide</a><a href="#compte" data-r="compte"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1-3.6 3.7-5.3 7-5.3s6 1.7 7 5.3"/></svg>Compte</a></nav>
 <div class="ap-toast" role="status" aria-live="polite"></div>`;
 const VIEW = $('#ap-view');
 function paintTop() {
   const p = $('#ap-plan'), pro = isPro();
   p.textContent = pro ? (S.plan === 'pro' ? 'Pro' : 'Essai Pro') : 'Gratuit'; p.classList.toggle('pro', pro); p.href = pro ? '#compte' : '#tarifs';
+  const nd = logged() ? dues().length : 0;
+  $$('[data-r="suivi"]').forEach(a => { let b = a.querySelector('.ap-dot'); if (nd) { if (!b) { b = document.createElement('b'); b.className = 'ap-dot'; a.appendChild(b); } b.textContent = nd; b.title = nd + ' relance(s) aujourd\'hui'; } else if (b) b.remove(); });
   $('#ap-me').innerHTML = logged() ? `<a class="ap-me" href="#compte" aria-label="Mon compte">${E((S.user.prenom || '?').charAt(0).toUpperCase())}</a>` : '<a class="btn ghost small" href="#connexion">Connexion</a>';
 }
 ROOT.addEventListener('click', e => {
@@ -143,8 +158,10 @@ function render(r) {
   else if (base === 'connexion' || base === 'inscription') vAuth(base);
   else if (base === 'compte') vCompte();
   else if (base === 'mentions') vMentions();
+  else if (base === 'exemples') vExemples();
+  else if (base === 'gestion') vGestion();
   if (changed && !pendingQ) { const h = VIEW.querySelector('h1'); if (h) { h.tabIndex = -1; try { h.focus({ preventScroll: true }); } catch (e) { } } }
-  document.title = ({ radar: 'Radar', fiche: 'Fiche commerce', suivi: 'Mes commerces', tarifs: 'Tarifs', aide: 'Aide', connexion: 'Connexion', inscription: 'Inscription', compte: 'Mon compte', mentions: 'Mentions légales' }[base] || 'PopSite') + ' · PopSite';
+  document.title = ({ radar: 'Radar', fiche: 'Fiche commerce', suivi: 'Mes commerces', tarifs: 'Tarifs', aide: 'Aide', connexion: 'Connexion', inscription: 'Inscription', compte: 'Mon compte', mentions: 'Mentions légales', exemples: 'Exemples de maquettes', gestion: 'Gestion' }[base] || 'PopSite') + ' · PopSite';
 }
 function openApp(r) {
   if (!ROOT.classList.contains('on')) { ROOT.classList.add('on'); document.body.classList.add('app-open'); window.__appOpen = true; }
@@ -371,22 +388,28 @@ function vFiche(id) {
       ${info.reg ? '<p class="fc-reg">Profession réglementée : son site doit rester informatif, sans publicité ni promotion.</p>' : ''}
       <div class="ap-row"><a class="btn ghost small" href="${gq}" target="_blank" rel="noopener">Vérifier sur Google</a>${osm ? `<a class="ap-link" href="${osm}" target="_blank" rel="noopener">Fiche OSM</a>` : ''}</div>
       ${isTarget(L) ? '<button class="ap-link" type="button" id="fc-has" style="align-self:flex-start">Il a déjà un site ? Retire-le</button>' : ''}
+      <label class="ap-field" id="fc-next-w" ${['montree', 'a_relancer'].includes(L.status) ? '' : 'hidden'}>Relance prévue le<input class="ap-input" type="date" id="fc-next" value="${E(L.next || '')}"></label>
       <label class="ap-field">Tes notes<textarea class="ap-area" id="fc-note" placeholder="Prénom du gérant, meilleur moment pour passer, réaction…">${E(L.note || '')}</textarea></label>
     </aside>
     <div class="fc-main">
-      <div class="tabs" role="tablist" aria-label="Étapes"><button class="tab" role="tab" id="t-mq" aria-controls="fc-panel" type="button"><b>01</b>Maquette</button><button class="tab" role="tab" id="t-pr" aria-controls="fc-panel" type="button"><b>02</b>Prospection</button><button class="tab" role="tab" id="t-pt" aria-controls="fc-panel" type="button"><b>03</b>Prompt IA</button></div>
+      <div class="tabs" role="tablist" aria-label="Étapes"><button class="tab" role="tab" id="t-mq" aria-controls="fc-panel" type="button"><b>01</b>Maquette</button><button class="tab" role="tab" id="t-pr" aria-controls="fc-panel" type="button"><b>02</b>Prospection</button><button class="tab" role="tab" id="t-pt" aria-controls="fc-panel" type="button"><b>03</b>Prompt IA</button><button class="tab" role="tab" id="t-dv" aria-controls="fc-panel" type="button"><b>04</b>Devis</button></div>
       <div class="fc-panel" id="fc-panel" role="tabpanel"></div>
     </div>
   </div></div>`;
-  const tabs = { mq: $('#t-mq'), pr: $('#t-pr'), pt: $('#t-pt') };
-  const show = k => { FTAB = k; Object.entries(tabs).forEach(([n, b]) => { b.setAttribute('aria-selected', n === k); b.tabIndex = n === k ? 0 : -1; }); $('#fc-panel').setAttribute('aria-labelledby', 't-' + k); if (pvCleanup) { pvCleanup(); pvCleanup = null; } (k === 'mq' ? pMaquette : k === 'pr' ? pProspect : pPrompt)(L); };
+  const tabs = { mq: $('#t-mq'), pr: $('#t-pr'), pt: $('#t-pt'), dv: $('#t-dv') };
+  const show = k => { FTAB = k; Object.entries(tabs).forEach(([n, b]) => { b.setAttribute('aria-selected', n === k); b.tabIndex = n === k ? 0 : -1; }); $('#fc-panel').setAttribute('aria-labelledby', 't-' + k); if (pvCleanup) { pvCleanup(); pvCleanup = null; } (k === 'mq' ? pMaquette : k === 'pr' ? pProspect : k === 'pt' ? pPrompt : pDevis)(L); };
   Object.entries(tabs).forEach(([k, b]) => b.addEventListener('click', () => show(k)));
-  $('.fc-main .tabs').addEventListener('keydown', e => { if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return; const ks = ['mq', 'pr', 'pt'], i = ks.indexOf(FTAB); const n = ks[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3]; show(n); tabs[n].focus(); });
+  $('.fc-main .tabs').addEventListener('keydown', e => { if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return; const ks = ['mq', 'pr', 'pt', 'dv'], i = ks.indexOf(FTAB); const n = ks[(i + (e.key === 'ArrowRight' ? 1 : 3)) % 4]; show(n); tabs[n].focus(); });
   $('#fc-st').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (!logged()) { needAccount('Crée ton compte pour suivre ce commerce.'); return; }
-    L.status = b.dataset.s; if (L.status === 'vendue') { if (!L.sale) L.sale = { ...S.prefs.price, at: Date.now() }; } else delete L.sale; keepLead(L); $$('#fc-st button').forEach(x => x.setAttribute('aria-pressed', x === b)); toast('Statut : ' + ST_LABEL[L.status]);
+    L.status = b.dataset.s; if (L.status === 'vendue') { if (!L.sale) L.sale = { ...S.prefs.price, at: Date.now() }; } else delete L.sale;
+    if (['montree', 'a_relancer'].includes(L.status) && !L.next) L.next = plusDays(L.status === 'montree' ? 5 : 2);
+    keepLead(L); $$('#fc-st button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    const nw = $('#fc-next-w'); if (nw) { nw.hidden = !['montree', 'a_relancer'].includes(L.status); $('#fc-next').value = L.next || ''; }
+    paintTop(); toast('Statut : ' + ST_LABEL[L.status] + (L.next && !nw.hidden ? ' · relance le ' + frDate(L.next) : ''));
   });
+  $('#fc-next').addEventListener('change', e => { L.next = e.target.value; keepLead(L); paintTop(); });
   $('#fc-note').addEventListener('input', e => { if (!logged()) return; L.note = e.target.value; if (L.status === 'nouveau') L.status = 'a_montrer'; keepLead(L); });
   $('#fc-note').addEventListener('focus', () => { if (!logged()) needAccount('Crée ton compte pour garder tes notes.'); }, { once: true });
   const has = $('#fc-has'); if (has) has.addEventListener('click', () => {
@@ -438,7 +461,7 @@ function pMaquette(L) {
   <div class="mq-pv">
     <div class="ap-row" style="justify-content:space-between"><div class="ap-seg" id="mq-dev" role="group" aria-label="Appareil"><button type="button" data-v="d" aria-pressed="true">Ordinateur</button><button type="button" data-v="m" aria-pressed="false">Téléphone</button></div><span class="fine">Aperçu en direct</span></div>
     <div class="mq-frame"><div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url">${E(sl)}.fr</span></div><div class="mq-vp" id="mq-vp"><iframe title="Maquette du site de ${E(L.name)}" sandbox="allow-same-origin"></iframe></div></div>
-    <div class="mq-act"><button class="btn" type="button" id="mq-show">Mode boutique</button><button class="btn ghost" type="button" id="mq-dl" data-dl ${canDownload() ? '' : 'hidden'}>Télécharger le HTML</button><button class="btn ghost" type="button" id="mq-copy">Copier le HTML</button></div>
+    <div class="mq-act"><button class="btn" type="button" id="mq-show">Mode boutique</button><button class="btn ghost" type="button" id="mq-dl" data-dl ${canDownload() ? '' : 'hidden'}>Télécharger le HTML</button><button class="btn ghost" type="button" id="mq-share">Lien à envoyer</button><button class="btn ghost" type="button" id="mq-copy">Copier le HTML</button></div>
     <p class="fine">Le mode boutique ouvre la maquette en plein écran : c'est elle que tu montres sur ton téléphone.</p>
   </div></div>`;
   const ifr = $('#mq-vp iframe'), vp = $('#mq-vp');
@@ -466,6 +489,7 @@ function pMaquette(L) {
   $('#mq-show').onclick = () => showMode(html(), L.name);
   const dl = $('#mq-dl'); if (dl) dl.onclick = async () => { if (await download(sl + '-maquette.html', html())) toast('Maquette téléchargée'); };
   $('#mq-copy').onclick = () => copy(html(), 'HTML de la maquette copié');
+  $('#mq-share').onclick = () => shareModal(L);
 }
 function showMode(html, name) {
   const s = document.createElement('div'); s.className = 'show'; s.setAttribute('role', 'dialog'); s.setAttribute('aria-label', 'Maquette de ' + name + ' en plein écran');
@@ -536,8 +560,14 @@ function vSuivi() {
   const by = k => leads.filter(l => l.status === k).sort((a, b) => b.updated - a.updated);
   const sold = by('vendue'), shown = leads.filter(l => ['montree', 'a_relancer', 'vendue'].includes(l.status));
   const card = l => { const P = STYLES[(l.f && l.f.style) || 'atelier']; return `<a class="sv-card" href="#fiche-${l.id}"><span class="sw" style="background:${l.f ? P.acc : 'var(--line)'}"></span><strong>${E(l.name)}</strong><small>${E(kindInfo(l.kind).label)}${l.city ? ' · ' + E(l.city) : ''}</small><small>${l.f ? 'Maquette ' + P.label.toLowerCase() : 'Pas de maquette'} · ${ago(l.updated)}</small></a>`; };
+  const du = dues(), anyMaq = Object.values(S.leads).some(l => l.f);
+  const steps = [['Scanne ta ville', !!S.scan], ['Fais popper une maquette', anyMaq], ['Montre-la à un commerçant', shown.length > 0], ['Vends ton premier site', sold.length > 0]];
+  const done = steps.filter(s => s[1]).length;
   VIEW.innerHTML = `<div class="ap-wrap sv">
-  <div><p class="eyebrow">Mes commerces</p><h1 class="ap-h1" style="margin-top:12px">Où tu en es.</h1></div>
+  <div class="ap-row" style="justify-content:space-between;align-items:flex-end"><div><p class="eyebrow">Mes commerces</p><h1 class="ap-h1" style="margin-top:12px">Où tu en es.</h1></div>
+  ${logged() && leads.length ? `<div class="ap-row"><button class="btn ghost small" type="button" id="sv-csv">Copier en CSV</button><button class="btn ghost small" type="button" id="sv-dl" data-dl ${canDownload() ? '' : 'hidden'}>Télécharger</button></div>` : ''}</div>
+  ${logged() && done < 4 ? `<div class="ap-box top-i ck"><div class="ap-row" style="justify-content:space-between"><span class="ap-k">Ton premier site vendu · ${done} / 4</span><div class="meter" style="flex:1;max-width:240px"><i style="width:${done * 25}%"></i></div></div><ol>${steps.map(([t, ok]) => `<li class="${ok ? 'ok' : ''}">${t}</li>`).join('')}</ol></div>` : ''}
+  ${logged() && du.length ? `<div class="ap-box top-a due"><span class="ap-k">À relancer aujourd'hui · ${du.length}</span><div class="ap-row">${du.map(l => `<a class="chip" href="#fiche-${l.id}">${E(l.name)}${l.next < today() ? ' · en retard' : ''}</a>`).join('')}</div></div>` : ''}
   ${!logged() ? `<div class="ap-empty"><h2 class="ap-h2">Connecte-toi pour suivre tes commerces.</h2><p>Ton suivi garde chaque commerce, sa maquette, tes notes et où tu en es.</p><div class="ap-row"><a class="btn small" href="#inscription">Créer mon compte</a><a class="btn ghost small" href="#connexion">Connexion</a></div></div>` :
     !leads.length ? `<div class="ap-empty"><h2 class="ap-h2">Rien à suivre pour l'instant.</h2><p>Lance le radar, ouvre un commerce sans site et fais popper sa maquette : il arrive ici.</p><a class="btn small" href="#radar">Ouvrir le radar</a></div>` : `
   <div class="sv-stats">
@@ -549,8 +579,10 @@ function vSuivi() {
   <div class="sv-cols">${[['a_montrer', 'À montrer'], ['montree', 'Montrée'], ['a_relancer', 'À relancer'], ['vendue', 'Vendue']].map(([k, l]) => { const xs = by(k); return `<div class="sv-col${k === 'vendue' ? ' sold' : ''}"><h2>${l}<span>${xs.length}</span></h2>${xs.map(card).join('') || '<p class="fine" style="padding:10px 2px">Vide</p>'}</div>`; }).join('')}</div>
   ${by('refus').length || by('a_un_site').length ? `<details class="faq"><summary>Écartés (${by('refus').length + by('a_un_site').length})</summary><div class="sv-other" style="padding-bottom:18px">${[...by('refus'), ...by('a_un_site')].map(l => `<a class="chip" href="#fiche-${l.id}">${E(l.name)} · ${ST_LABEL[l.status]}</a>`).join('')}</div></details>` : ''}`}
   </div>`;
+  const csv = () => 'Nom;Activité;Ville;Adresse;Téléphone;E-mail;Statut;Relance;Notes;Création;Mensuel;Mis à jour\n' + leads.map(l => { const f = l.f || {}, p = l.sale || S.prefs.price; return [l.name, kindInfo(l.kind).label, f.city || l.city, f.addr || l.addr, f.phone || phoneOf(l.tags || {}), f.email || emailOf(l.tags || {}), ST_LABEL[l.status], l.next || '', l.note || '', p.creation, p.mensuel, new Date(l.updated).toLocaleDateString('fr-FR')].map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(';'); }).join('\n');
+  const c = $('#sv-csv'); if (c) c.onclick = () => copy(csv(), 'Suivi copié (colle-le dans un tableur)');
+  const d = $('#sv-dl'); if (d) d.onclick = async () => { if (await download('popsite-suivi.csv', '\ufeff' + csv())) toast('Suivi téléchargé'); };
 }
-
 /* ================= TARIFS ================= */
 function vTarifs() {
   const pro = isPro();
@@ -624,6 +656,7 @@ function vAuth(kind) {
     <label class="ap-field">E-mail<input class="ap-input" name="email" type="email" autocomplete="email" required></label>
     ${up ? `<label class="ap-field">Ta ville (facultatif)<input class="ap-input" name="ville" autocomplete="address-level2"></label>
     <label class="au-check"><input type="checkbox" name="cgu"><span>J'accepte les <a class="ap-link" href="#mentions" style="font-size:inherit;text-transform:none;letter-spacing:0">conditions d'utilisation</a>.</span></label>` : ''}
+    <input type="text" name="site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
     <p class="au-err" id="au-err" role="alert"></p>
     <button class="btn" type="submit">${up ? 'Créer mon compte' : 'Me connecter'}</button>
     <p class="fine" style="text-align:center">${up ? 'Déjà un compte ? <a class="ap-link" href="#connexion">Connexion</a>' : 'Pas encore de compte ? <a class="ap-link" href="#inscription">Inscription</a>'}</p>
@@ -637,6 +670,7 @@ function vAuth(kind) {
       if (!prenom) { err.textContent = 'Ton prénom, pour signer tes messages.'; return; }
       if (!fd.get('cgu')) { err.textContent = 'Coche la case pour accepter les conditions.'; return; }
       S.user = { prenom, email, ville: String(fd.get('ville') || '').trim(), tel: '', since: Date.now() }; S.auth = true;
+      if (!fd.get('site')) sendLead({ prenom, email, ville: S.user.ville, source: 'inscription' });
     } else {
       if (!S.user || S.user.email !== email) { err.innerHTML = 'Aucun compte avec cet e-mail sur cet appareil. <a class="ap-link" href="#inscription">Créer un compte</a>'; return; }
       S.auth = true;
@@ -696,6 +730,148 @@ function vMentions() {
     <section><h2 class="ap-h2">Tes données</h2><ul><li>Pendant la bêta, ton compte, tes scans, tes maquettes et tes notes sont enregistrés uniquement dans ton navigateur. Aucun serveur PopSite ne les reçoit.</li><li>Quand tu lances un scan, le nom de la ville et ses coordonnées sont envoyés aux services OpenStreetMap et IGN pour obtenir les résultats.</li><li>PopSite n'utilise ni cookie publicitaire ni outil de suivi.</li><li>Tu peux tout exporter ou tout effacer depuis ton compte, à tout moment.</li></ul></section>
     <section><h2 class="ap-h2">Conditions d'utilisation</h2><ul><li>PopSite t'aide à repérer des commerces et à préparer des maquettes. Tu restes responsable de ta prospection et du respect des règles qui s'y appliquent.</li><li>Les maquettes sont des propositions : ne publie jamais un site sans l'accord du commerçant, et n'y mets aucun avis ni chiffre inventé.</li><li>L'abonnement Pro est sans engagement.</li></ul></section>
   </div></div>`;
+}
+
+
+/* ================= LIEN À ENVOYER ================= */
+function shareModal(L) {
+  const f = L.f, me = (S.user && S.user.prenom) || '';
+  modal(`<p class="eyebrow">Lien de la maquette</p><h2>À envoyer à ${E(L.name)}</h2>
+  <p>Le gérant ouvre sa maquette sur son téléphone, quand il veut. Rien n'est publié : toute la maquette tient dans le lien.</p>
+  <div class="sh-qr" id="sh-qr"><span class="fine">QR code en préparation…</span></div>
+  <input class="ap-input" id="sh-url" readonly value="Préparation du lien…" aria-label="Lien de la maquette">
+  <div class="ap-row"><button class="btn" type="button" id="sh-copy" disabled>Copier le lien</button><a class="btn ghost" id="sh-sms" href="#" hidden>Envoyer par SMS</a><button class="btn ghost" type="button" id="sh-msg" disabled>Copier le message</button></div>
+  <p class="fine">En boutique : fais-lui scanner le QR code, la maquette s'ouvre sur son téléphone.</p>`, async m => {
+    let url = '';
+    try { url = await shareUrl(model(L)); } catch (e) { m.querySelector('#sh-url').value = 'Impossible de créer le lien sur ce navigateur.'; return; }
+    const msg = `Bonjour, comme promis, voici la maquette du site de ${L.name} : ${url}${me ? '\n' + me : ''}`;
+    m.querySelector('#sh-url').value = url;
+    const c = m.querySelector('#sh-copy'), cm = m.querySelector('#sh-msg'); c.disabled = cm.disabled = false;
+    c.onclick = () => copy(url, 'Lien copié'); cm.onclick = () => copy(msg, 'Message copié');
+    const tel = (f.phone || '').replace(/[^\d+]/g, ''), mob = /^(\+33|0)[67]/.test(tel);
+    if (!window.claude) { const a = m.querySelector('#sh-sms'); a.hidden = false; a.href = `sms:${mob ? tel : ''}?&body=${encodeURIComponent(msg)}`; }
+    qrSvg(url).then(svg => { const q = m.querySelector('#sh-qr'); if (q) q.innerHTML = svg; }).catch(() => { const q = m.querySelector('#sh-qr'); if (q) q.innerHTML = '<span class="fine">QR code indisponible sans connexion</span>'; });
+  });
+}
+
+/* ================= DEVIS ================= */
+function pDevis(L) {
+  const P = $('#fc-panel');
+  if (!logged()) { P.innerHTML = `<div class="ap-empty"><h2 class="ap-h2">Le devis, après le oui.</h2><p>Crée ton compte pour préparer un devis propre en deux minutes.</p><a class="btn small" href="#inscription">Créer mon compte</a></div>`; return; }
+  const B = S.prefs.biz || (S.prefs.biz = { nom: S.user.prenom || '', siret: '', adresse: '', franchise: true, conditions: 'Paiement à réception de facture.' });
+  if (!L.devis) {
+    S.prefs.devisSeq = (S.prefs.devisSeq || 0) + 1;
+    L.devis = { num: 'DEV-' + new Date().getFullYear() + '-' + String(S.prefs.devisSeq).padStart(3, '0'), date: today(), valid: 30,
+      lines: [{ t: 'Création du site vitrine : une page adaptée au téléphone, textes, horaires, contact et référencement local', p: S.prefs.price.creation, m: false },
+        { t: 'Hébergement, nom de domaine et petites mises à jour', p: S.prefs.price.mensuel, m: true }] };
+    keepLead(L); save(true);
+  }
+  const D = L.devis;
+  const html = () => devisHtml(L, D, B);
+  P.innerHTML = `<div class="mq">
+  <form class="mq-ed" id="dv-f" novalidate>
+    <p class="pr-note">Un devis clair rassure et fait signer. Ces infos sont gardées pour tes prochains devis.</p>
+    <label class="ap-field">Ton nom ou ton entreprise<input class="ap-input" data-b="nom" value="${E(B.nom)}"></label>
+    <label class="ap-field">SIRET<input class="ap-input" data-b="siret" value="${E(B.siret)}" placeholder="Obligatoire pour facturer"></label>
+    <label class="ap-field">Ton adresse<input class="ap-input" data-b="adresse" value="${E(B.adresse)}"></label>
+    ${D.lines.map((l, i) => `<div class="ap-field">Ligne ${i + 1}${l.m ? ' (par mois)' : ''}<textarea class="ap-area" style="min-height:70px" data-l="${i}" data-k="t">${E(l.t)}</textarea><input class="ap-input" data-l="${i}" data-k="p" inputmode="numeric" value="${E(l.p)}" aria-label="Prix ligne ${i + 1} en euros"></div>`).join('')}
+    <label class="ap-field">Conditions de paiement<input class="ap-input" data-b="conditions" value="${E(B.conditions)}"></label>
+    <label class="switch">Micro-entreprise : TVA non applicable<input type="checkbox" data-b="franchise" ${B.franchise ? 'checked' : ''}></label>
+  </form>
+  <div class="mq-pv">
+    <div class="ap-row" style="justify-content:space-between"><span class="ap-k">${E(D.num)} · valable ${D.valid} jours</span><span class="fine">Aperçu</span></div>
+    <div class="mq-frame"><div class="mq-vp" id="dv-vp" style="height:560px;background:#e9e5dc"><iframe title="Devis" sandbox="allow-same-origin allow-modals" style="width:794px;height:1123px;transform-origin:0 0"></iframe></div></div>
+    <div class="mq-act">${window.claude ? '' : '<button class="btn" type="button" id="dv-print">Imprimer ou PDF</button>'}<button class="btn ghost" type="button" id="dv-dl" data-dl ${canDownload() ? '' : 'hidden'}>Télécharger</button><button class="btn ghost" type="button" id="dv-copy">Copier le HTML</button></div>
+    <p class="fine">${window.claude ? 'Sur le site en ligne, un bouton imprime le devis ou l\'enregistre en PDF.' : 'Dans la fenêtre d\'impression, choisis « Enregistrer en PDF » pour l\'envoyer par mail.'}</p>
+  </div></div>`;
+  const vp = $('#dv-vp'), ifr = vp.querySelector('iframe');
+  const fit = () => { const s = Math.min(1, vp.clientWidth / 794); ifr.style.transform = `scale(${s})`; vp.style.height = Math.round(1123 * s) + 'px'; };
+  const ro = new ResizeObserver(fit); ro.observe(vp); fit(); pvCleanup = () => ro.disconnect();
+  let t = 0; const paint = () => { ifr.srcdoc = html(); }; paint();
+  $('#dv-f').addEventListener('input', e => {
+    const el = e.target;
+    if (el.dataset.b) B[el.dataset.b] = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.dataset.l != null) { const l = D.lines[+el.dataset.l]; l[el.dataset.k] = el.dataset.k === 'p' ? Math.max(0, parseInt(el.value, 10) || 0) : el.value; }
+    keepLead(L); save(); clearTimeout(t); t = setTimeout(paint, 200);
+  });
+  const pr = $('#dv-print'); if (pr) pr.onclick = () => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) { toast('Impression impossible ici : utilise « Télécharger »'); } };
+  $('#dv-dl').onclick = async () => { if (await download(D.num + '-' + slug(L.name) + '.html', html())) toast('Devis téléchargé'); };
+  $('#dv-copy').onclick = () => copy(html(), 'Devis copié');
+}
+function devisHtml(L, D, B) {
+  const f = L.f || {}, once = D.lines.filter(l => !l.m), month = D.lines.filter(l => l.m);
+  const tot = xs => xs.reduce((a, l) => a + (+l.p || 0), 0);
+  const end = new Date(new Date(D.date + 'T12:00:00').getTime() + D.valid * 864e5).toLocaleDateString('fr-FR');
+  const row = l => `<tr><td>${E(l.t)}</td><td class="r">${eur(l.p)}${l.m ? ' / mois' : ''}</td></tr>`;
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${E(D.num)} · ${E(L.name)}</title><style>
+  @page{size:A4;margin:16mm}*{box-sizing:border-box}body{margin:0;padding:48px 56px;font:14px/1.5 "Helvetica Neue",Arial,sans-serif;color:#17202e;background:#fff}
+  .top{display:flex;justify-content:space-between;gap:30px;margin-bottom:46px}h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}.muted{color:#5b6472}.box{border:1px solid #d9d3c6;border-radius:8px;padding:14px 16px;min-width:230px}
+  .k{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8a8f99;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin:26px 0}th{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8a8f99;text-align:left;border-bottom:2px solid #17202e;padding:8px 0}
+  td{padding:14px 0;border-bottom:1px solid #e4dfd4;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:20px}.tot td{border:0;font-weight:700;font-size:16px;padding-top:10px}
+  .sign{display:flex;justify-content:space-between;gap:30px;margin-top:40px}.sign div{flex:1;border:1px dashed #b9b2a3;border-radius:8px;height:110px;padding:12px 14px}.foot{margin-top:40px;font-size:12px;color:#5b6472}
+  </style></head><body>
+  <div class="top"><div><h1>Devis</h1><div class="muted">N° ${E(D.num)} · le ${new Date(D.date + 'T12:00:00').toLocaleDateString('fr-FR')}</div><div class="muted">Valable jusqu'au ${end}</div></div>
+  <div class="box"><div class="k">Prestataire</div><strong>${E(B.nom || '[Ton nom]')}</strong><br>${E(B.adresse || '[Ton adresse]')}<br>SIRET : ${E(B.siret || '[À compléter]')}${S.user && S.user.email ? '<br>' + E(S.user.email) : ''}${S.user && S.user.tel ? '<br>' + E(S.user.tel) : ''}</div></div>
+  <div class="box" style="max-width:340px"><div class="k">Client</div><strong>${E(L.name)}</strong><br>${E([f.addr || L.addr, f.city || L.city].filter(Boolean).join(', ') || '[Adresse du client]')}</div>
+  <table><thead><tr><th>Désignation</th><th class="r">Prix</th></tr></thead><tbody>${D.lines.map(row).join('')}
+  <tr class="tot"><td>Total à la commande</td><td class="r">${eur(tot(once))}</td></tr>${month.length ? `<tr class="tot"><td>Puis, chaque mois</td><td class="r">${eur(tot(month))}</td></tr>` : ''}</tbody></table>
+  <p>${E(B.conditions || '')}${B.franchise ? '<br>TVA non applicable, article 293 B du CGI.' : '<br>Prix indiqués hors taxes.'}</p>
+  <div class="sign"><div><div class="k">Le prestataire</div></div><div><div class="k">Le client · « Bon pour accord », date et signature</div></div></div>
+  <p class="foot">L'abonnement mensuel est sans engagement et peut être arrêté à tout moment avec un mois de préavis.</p>
+  </body></html>`;
+}
+
+/* ================= EXEMPLES ================= */
+const EXEMPLES = [
+  ['Garage Perrin', 'car_repair', 'atelier', '12 rue des Tanneurs', 'Mo-Fr 08:00-12:00,14:00-18:30; Sa 09:00-12:00', '4,7', '86'],
+  ['La Table d\'Odile', 'restaurant', 'vitrine', '3 place de l\'Église', 'Tu-Sa 12:00-14:00,19:00-21:30; Su 12:00-14:00', '4,6', '142'],
+  ['Coiffure Mylène', 'hairdresser', 'nuit', '15 Grande Rue', 'Tu-Fr 09:00-12:00,14:00-19:00; Sa 08:30-16:00', '', ''],
+  ['Le Fournil d\'Élise', 'bakery', 'atelier', '8 rue du Moulin', 'Tu-Sa 06:30-13:00,15:30-19:30; Su 07:00-12:30', '4,8', '57'],
+  ['Menuiserie Roche', 'carpenter', 'vitrine', 'Route de Cluny', 'Mo-Fr 08:00-12:00,13:30-17:30', '', ''],
+  ['Fleurs & Saisons', 'florist', 'nuit', '2 place du Marché', 'Tu-Sa 09:00-12:30,14:30-19:00; Su 09:00-12:30', '4,9', '31']
+];
+function exModel(e) {
+  const info = kindInfo(e[1]), L = { name: e[0], kind: e[1], city: 'Saint-Pop', addr: e[3], tags: { opening_hours: e[4] } };
+  return { name: e[0], kindLabel: info.label, group: info.g, city: 'Saint-Pop', addr: e[3], phone: '03 53 73 10 ' + String(20 + e[0].length).slice(0, 2), email: '', social: '', hours: parseHours(e[4]), tagline: info.hook, intro: introFor(L, info), services: info.svc.slice(0, 5), rating: e[5], reviews: e[6], cta: info.cta, style: e[2], lat: 46.5641, lon: 4.672, by: '' };
+}
+function vExemples() {
+  VIEW.innerHTML = `<div class="ap-wrap pg">
+  <div style="display:flex;flex-direction:column;gap:14px"><p class="eyebrow">Exemples</p><h1 class="ap-h1">Des maquettes qui font dire oui.</h1><p class="ap-sub">Six commerces fictifs, trois styles. Chaque maquette sort en un clic à partir des infos du commerce, et tu ajustes tout.</p></div>
+  <div class="ex-grid">${EXEMPLES.map((e, i) => `<article class="ex-card"><div class="ex-vp"><iframe title="Maquette ${E(e[0])}" sandbox="allow-same-origin" loading="lazy" tabindex="-1"></iframe></div><div class="ex-cap"><div><strong>${E(e[0])}</strong><small>${E(kindInfo(e[1]).label)} · style ${STYLES[e[2]].label}</small></div><button class="btn ghost small" type="button" data-ex="${i}">Voir en grand</button></div></article>`).join('')}</div>
+  <div class="ap-row"><a class="btn" href="#radar">Fais popper la tienne</a><span class="fine">Gratuit, sans carte bancaire</span></div></div>`;
+  const cards = $$('.ex-card');
+  cards.forEach((c, i) => { c.querySelector('iframe').srcdoc = buildMockup(exModel(EXEMPLES[i])); });
+  const fit = () => cards.forEach(c => { const vp = c.querySelector('.ex-vp'), s = vp.clientWidth / 1280; c.querySelector('iframe').style.transform = `scale(${s})`; });
+  const ro = new ResizeObserver(fit); cards.forEach(c => ro.observe(c.querySelector('.ex-vp'))); fit();
+  cleanup = () => ro.disconnect();
+  $('.ex-grid').addEventListener('click', e => { const b = e.target.closest('[data-ex]'); if (b) showMode(buildMockup(exModel(EXEMPLES[+b.dataset.ex])), EXEMPLES[+b.dataset.ex][0]); });
+}
+
+/* ================= GESTION (toi seul, avec ta clé) ================= */
+function vGestion() {
+  let key = ''; try { key = sessionStorage.getItem('popsite:admin') || ''; } catch (e) { }
+  VIEW.innerHTML = `<div class="ap-wrap pg"><div style="display:flex;flex-direction:column;gap:12px"><p class="eyebrow">Gestion</p><h1 class="ap-h1">Tes inscrits.</h1></div>
+  ${!ONLINE ? '<div class="ap-empty"><p>Cette page fonctionne sur le site en ligne : elle affiche les inscriptions et les demandes « Préviens-moi » reçues par le serveur.</p></div>' : `
+  <form class="ap-row" id="gs-f"><input class="ap-input" style="flex:1 1 260px;max-width:420px" type="password" name="key" placeholder="Ta clé de gestion" value="${E(key)}" aria-label="Clé de gestion"><button class="btn" type="submit">Afficher</button></form>
+  <div id="gs-out"></div>`}</div>`;
+  if (!ONLINE) return;
+  const load = async k => {
+    const out = $('#gs-out'); out.innerHTML = '<p class="fine">Chargement…</p>';
+    try {
+      const r = await fetch('/api/inscrits', { headers: { 'x-admin-key': k } });
+      if (r.status === 401) { out.innerHTML = '<p class="au-err">Clé incorrecte.</p>'; return; }
+      const j = await r.json(); if (!j.ok) throw 0;
+      try { sessionStorage.setItem('popsite:admin', k); } catch (e) { }
+      const rows = j.rows, by = s => rows.filter(x => x.source === s).length;
+      const csv = 'date;source;prenom;email;ville\n' + rows.map(x => [x.at, x.source, x.prenom, x.email, x.ville].map(v => '"' + String(v || '').replace(/"/g, '""') + '"').join(';')).join('\n');
+      out.innerHTML = `<div class="sv-stats"><div class="ap-box sv-stat"><span class="ap-k">Total</span><b>${rows.length}</b></div><div class="ap-box sv-stat"><span class="ap-k">Inscriptions</span><b>${by('inscription')}</b></div><div class="ap-box sv-stat amb"><span class="ap-k">Veulent Pro</span><b>${by('pro')}</b></div><div class="ap-box sv-stat"><span class="ap-k">7 derniers jours</span><b>${rows.filter(x => Date.now() - new Date(x.at) < 7 * 864e5).length}</b></div></div>
+      <div class="ap-row" style="margin:18px 0"><button class="btn ghost small" type="button" id="gs-csv">Copier en CSV</button></div>
+      <div class="ap-box" style="overflow-x:auto"><table class="pg-cmp" style="max-width:none"><thead><tr><th>Date</th><th>Source</th><th>Prénom</th><th>E-mail</th><th>Ville</th></tr></thead><tbody>${rows.map(x => `<tr><td>${E(new Date(x.at).toLocaleString('fr-FR'))}</td><td>${E(x.source)}</td><td>${E(x.prenom)}</td><td>${E(x.email)}</td><td>${E(x.ville)}</td></tr>`).join('') || '<tr><td colspan="5">Personne pour l\'instant.</td></tr>'}</tbody></table></div>`;
+      $('#gs-csv').onclick = () => copy(csv, 'Liste copiée');
+    } catch (e) { out.innerHTML = '<p class="au-err">Le serveur n\'a pas répondu. Réessaie dans un instant.</p>'; }
+  };
+  $('#gs-f').addEventListener('submit', e => { e.preventDefault(); load(String(new FormData(e.target).get('key') || '')); });
+  if (key) load(key);
 }
 
 /* ---------------- API pour l'accueil ---------------- */

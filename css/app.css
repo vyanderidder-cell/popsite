@@ -273,5 +273,22 @@ body.app-open .hud,body.app-open .rail,body.app-open .cursor,body.app-open .vign
   #app .tab{padding:0 14px}
 }
 #app h1:focus{outline:none}
+.sh-qr{width:min(220px,70%);align-self:center;background:#fff;padding:10px;border-radius:12px;min-height:80px;display:grid;place-items:center}
+.sh-qr svg{display:block;width:100%;height:auto}.sh-qr .fine{color:#5b6472}
+.ap-dot{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;margin-left:6px;border-radius:999px;background:var(--amber);color:#1a1002;font-size:9.5px;font-weight:700;letter-spacing:0}
+.ap-tabbar .ap-dot{position:absolute;margin:0;transform:translate(14px,-10px)}.ap-tabbar a{position:relative}
+.ck{padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.ck ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;counter-reset:ck}
+.ck li{counter-increment:ck;border:1px solid var(--line);padding:12px;font-size:15px;color:#cfd6e4;display:flex;gap:10px;align-items:baseline}
+.ck li::before{content:counter(ck);font-family:var(--mono);font-size:10px;color:var(--mute);border:1px solid var(--line);border-radius:50%;width:22px;height:22px;display:grid;place-items:center;flex:none}
+.ck li.ok{color:var(--ivory);border-color:rgba(127,224,255,.4)}.ck li.ok::before{content:"✓";color:#060a13;background:var(--ice);border-color:var(--ice)}
+.due{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.ex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+.ex-card{border:1px solid var(--line);background:rgba(10,16,29,.92);display:flex;flex-direction:column}
+.ex-vp{position:relative;aspect-ratio:16/11;overflow:hidden;background:#f6f1e7}
+.ex-vp iframe{position:absolute;left:0;top:0;width:1280px;height:880px;border:0;transform-origin:0 0;pointer-events:none}
+.ex-cap{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px}
+.ex-cap strong{display:block;font-size:17px;letter-spacing:-.015em}.ex-cap small{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+@media (max-width:860px){.ck ol{grid-template-columns:1fr 1fr}}
 @media (pointer:coarse){#app input,#app textarea,#app select{font-size:16px!important}}
 @media (prefers-reduced-motion:reduce){.au-art .scope::before{animation:none}.rd-steps li.cur::after{animation:none}}
