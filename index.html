@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PopSite · Le radar à commerces sans site</title>
+<meta name="description" content="PopSite repère les commerces sans site autour de toi, monte leur maquette en un clic et te donne le script pour la leur vendre. Gratuit pour commencer.">
+<meta name="theme-color" content="#060a13">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23060a13'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23ffb23e' opacity='.25'/%3E%3Ccircle cx='16' cy='16' r='5.5' fill='%23ffb23e'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PopSite · Trouve les commerces sans site autour de toi">
+<meta property="og:description" content="Le radar les repère, la maquette pop, tu passes la montrer. Gratuit pour commencer.">
+<meta property="og:image" content="img/og.jpg">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="modulepreload" href="lib/three.module.min.js">
+<script>/* accueil : on lance tout de suite le téléchargement des gros fichiers 3D (pas si on arrive directement dans l'appli) */
+if (!/^#(radar|suivi|tarifs|aide|connexion|inscription|compte|mentions|fiche-)/.test(location.hash)) ['kit/kit.json', 'pk/nature.json', 'pk/props.json'].forEach(function (h) { var l = document.createElement('link'); l.rel = 'preload'; l.as = 'fetch'; l.href = h; l.crossOrigin = 'anonymous'; document.head.appendChild(l); });</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<style>
+:root{
+  /* Layout: a night village rendered in WebGL on a fixed canvas, flown over by scrolling. Copy hugs the left edge in one column; a radar HUD sits in the corners and a section rail on the right. */
+  --night:#060a13;
+  --panel:#0c1322;
+  --line:#26344f;
+  --ivory:#f1ece2;
+  --mute:#93a0ba;
+  --amber:#ffb23e;   /* commerces sans site */
+  --ice:#7fe0ff;     /* le radar, l'outil */
+  --display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --gutter:clamp(18px,4.5vw,64px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:auto}
+body{margin:0;background:var(--night);color:var(--ivory);font-family:var(--display);font-size:18px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,p{margin:0}
+h1,h2{text-wrap:balance;font-weight:800;letter-spacing:-.035em;line-height:.95}
+h2{font-size:clamp(34px,5.4vw,68px)}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ice);outline-offset:3px;border-radius:4px}
+
+#poster{position:fixed;inset:0;z-index:0;background:#060a13 url(img/poster-d.jpg) center/cover no-repeat;transition:opacity 1.4s ease}
+#poster.gone{opacity:0;pointer-events:none}
+@media (max-width:820px){#poster{background-image:url(img/poster-m.jpg)}}
+#scene{position:fixed;inset:0;z-index:0;opacity:0}
+#scene canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 90% at 60% 40%,transparent 48%,rgba(3,5,10,.72) 100%)}
+.grain{position:fixed;z-index:1;left:-50%;top:-50%;width:200%;height:200%;pointer-events:none;opacity:.06;animation:grain .8s steps(5) infinite}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-4%,3%)}40%{transform:translate(3%,-5%)}60%{transform:translate(-6%,-2%)}80%{transform:translate(5%,4%)}100%{transform:translate(0,0)}}
+
+/* HUD */
+.hud{position:fixed;z-index:5;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.hud b{color:var(--ivory);font-weight:600}
+.top{top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px var(--gutter);background:linear-gradient(rgba(6,10,19,.72),rgba(6,10,19,0))}
+.mark{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.04em;text-transform:none;color:var(--ivory);text-decoration:none;display:flex;align-items:center;gap:8px}
+.mark i{width:11px;height:11px;border-radius:50%;background:var(--amber);box-shadow:0 0 14px 3px rgba(255,178,62,.55)}
+.top nav{display:flex;align-items:center;gap:22px}
+.top nav a{text-decoration:none}
+.top nav a:hover{color:var(--ivory)}
+.readout{bottom:16px;left:var(--gutter);display:flex;gap:22px;flex-wrap:wrap}
+.readout .amb b{color:var(--amber)}
+.br{bottom:12px;right:var(--gutter);display:flex;align-items:center;gap:18px}
+.readout,.alt{transition:opacity .35s}
+.loadv{bottom:46px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;transition:opacity .6s}.loadv i{display:block;width:120px;height:2px;background:var(--line);position:relative;overflow:hidden}.loadv i::after{content:'';position:absolute;inset:0;background:var(--amber);transform-origin:left;transform:scaleX(var(--p,0));transition:transform .3s}.loadv.done{opacity:0;pointer-events:none}
+.off{opacity:0}
+.br,.readout{transition:opacity .35s}.hide{opacity:0!important;pointer-events:none}
+.wx{display:flex;gap:4px}
+.wx button{min-height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:rgba(6,10,19,.6);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);cursor:pointer}
+.wx button:hover{color:var(--ivory);border-color:var(--mute)}
+.wx button[aria-pressed="true"]{color:var(--ice);border-color:var(--ice)}
+.rail{position:fixed;z-index:5;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px}
+.rail a{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:22px;text-decoration:none;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.rail a span{opacity:0;transform:translateX(6px);transition:opacity .25s,transform .25s;white-space:nowrap;background:rgba(6,10,19,.8);padding:2px 6px}
+.rail a::after{content:"";width:14px;height:1px;background:currentColor;transition:width .35s cubic-bezier(.2,.8,.2,1),background-color .35s}
+.rail a:hover span,.rail a:focus-visible span{opacity:1;transform:none}
+.rail a:hover{color:var(--ivory)}
+.rail a.on{color:var(--amber)}
+.rail a.on::after{width:30px;height:2px;background:var(--amber)}
+.cursor{position:fixed;left:0;top:0;z-index:9;width:30px;height:30px;margin:-15px 0 0 -15px;border:1px solid rgba(241,236,226,.5);border-radius:50%;pointer-events:none;opacity:0;transition:width .25s,height .25s,margin .25s,border-color .25s,background-color .25s,opacity .3s}
+.cursor.live{opacity:1}
+.cursor.hot{width:54px;height:54px;margin:-27px 0 0 -27px;border-color:var(--amber);background:rgba(255,178,62,.07)}
+.cursor.shop{width:44px;height:44px;margin:-22px 0 0 -22px;border-color:var(--amber)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 22px;border-radius:999px;border:1px solid var(--amber);background:var(--amber);color:#1a1002;font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:-.01em;text-decoration:none;cursor:pointer;text-transform:none}
+.btn:hover{background:#ffc467}
+.btn.ghost{background:rgba(6,10,19,.5);color:var(--ivory);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--ice);color:var(--ice)}
+.btn.small{min-height:36px;padding:0 16px;font-size:14px}
+
+main{position:relative;z-index:2}
+section{padding:0 var(--gutter)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ice)}
+.lede{color:#cfd6e4;max-width:40ch;font-size:clamp(18px,1.6vw,21px)}
+.fine{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--mute);text-transform:uppercase}
+
+@keyframes rise{from{opacity:0;transform:translateY(.45em)}to{opacity:1;transform:none}}
+.in .reveal{animation:rise .95s cubic-bezier(.16,.84,.24,1) both}
+.in .reveal.d1{animation-delay:.09s}.in .reveal.d2{animation-delay:.18s}.in .reveal.d3{animation-delay:.27s}
+
+/* Hero */
+.hero{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;gap:18px;padding-top:96px;padding-bottom:104px;background:linear-gradient(90deg,rgba(6,10,19,.9) 0,rgba(6,10,19,.58) 32%,transparent 60%)}
+.hero h1{font-size:clamp(44px,7.2vw,104px);max-width:11ch}
+.hero .num{color:var(--amber);font-variant-numeric:tabular-nums;text-shadow:0 0 42px rgba(255,178,62,.45);display:inline-block;min-width:1.15em}
+.row{display:flex;flex-wrap:wrap;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;max-width:780px}
+.chip{min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:rgba(12,19,34,.8);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.chip b{color:var(--ivory);font-weight:600;font-variant-numeric:tabular-nums}
+.chip:hover{border-color:var(--amber);color:var(--ivory)}
+.chip[aria-pressed="true"]{border-color:var(--amber);background:rgba(255,178,62,.14);color:var(--amber)}
+.chip[aria-pressed="true"] b{color:var(--amber)}
+
+/* Approach */
+.approach{height:210vh;pointer-events:none}
+.approach .pin{position:sticky;top:0;height:100vh;height:100svh;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 0 92px}
+.card{pointer-events:auto;width:min(380px,100%);background:rgba(10,16,29,.93);border:1px solid var(--line);border-top:2px solid var(--amber);padding:22px 22px 20px;display:flex;flex-direction:column;gap:14px}
+.card h3{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.card dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-family:var(--mono);font-size:11.5px}
+.card dt{color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.card dd{margin:0;text-align:right}
+.card dd.none{color:var(--amber);font-weight:600}
+.card p{font-size:16px;color:#cfd6e4}
+
+/* Pop */
+.pop{height:320vh}
+.stage{position:sticky;top:0;height:100vh;height:100svh;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:center;gap:clamp(20px,4vw,64px);padding:84px 0 64px}
+.stage .copy{display:flex;flex-direction:column;gap:18px;align-self:start;margin-top:3vh;padding:26px;background:rgba(8,13,24,.92);border:1px solid var(--line);border-top:2px solid var(--ice)}
+.styles{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.styles span{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-right:4px}
+.browser{--m-bg:#f6f1e7;--m-ink:#17202e;--m-soft:#4a5361;--m-acc:#e2562b;--m-box:#ece5d6;--m-rule:#cfc5b0;--m-bar:#e6dfd0;--m-on:#fff;--m-head:var(--display);--m-r:10px;
+  position:relative;background:var(--m-bg);color:var(--m-ink);border-radius:14px;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 40px 120px rgba(0,0,0,.6),0 0 90px rgba(255,178,62,.16);overflow:hidden;font-size:14px;line-height:1.35;transform-origin:10% 80%;transition:background-color .35s,color .35s}
+.browser.vitrine{--m-bg:#fbfaf6;--m-ink:#12261c;--m-soft:#4d5f55;--m-acc:#1f6b47;--m-box:#eef1e8;--m-rule:#cdd6c8;--m-bar:#e9ece3;--m-head:Georgia,"Times New Roman",serif;--m-r:2px}
+.browser.nuit{--m-bg:#101826;--m-ink:#f1ece2;--m-soft:#a9b4c9;--m-acc:#ffb23e;--m-box:#18233a;--m-rule:#2b3a58;--m-bar:#0b111d;--m-on:#1a1002;--m-r:16px}
+.bar{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--m-bar);border-bottom:1px solid var(--m-rule)}
+.dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--m-rule)}
+.url{flex:1;background:var(--m-bg);border-radius:999px;padding:4px 12px;font-family:var(--mono);font-size:10.5px;color:var(--m-soft);min-height:22px}
+.site{padding:14px;display:flex;flex-direction:column;gap:12px}
+.blk{will-change:transform}
+.s-nav{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.s-nav strong{font-family:var(--m-head);font-size:17px;font-weight:800;letter-spacing:-.03em}
+.s-nav span{display:flex;gap:14px;font-size:12px;color:var(--m-soft)}
+.pill{background:var(--m-acc,#e2562b);color:var(--m-on,#fff);border-radius:999px;padding:6px 12px;font-weight:700;font-size:12px;white-space:nowrap}
+.s-hero{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;align-items:stretch}
+.s-hero h4{margin:0 0 8px;font-family:var(--m-head);font-size:clamp(20px,2.5vw,34px);font-weight:800;letter-spacing:-.035em;line-height:.98}
+.s-hero p{color:var(--m-soft);font-size:13px}
+.photo{min-height:110px;border-radius:var(--m-r,10px);background:repeating-linear-gradient(135deg,var(--m-box,#d9d0bd) 0 10px,var(--m-rule,#cfc5b0) 10px 20px);display:flex;align-items:flex-end;padding:8px;font-family:var(--mono);font-size:9.5px;color:var(--m-soft,#5b6472);text-transform:uppercase;letter-spacing:.06em}
+.s-chips{display:flex;flex-wrap:wrap;gap:6px}
+.s-chips span{border:1px solid var(--m-rule);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600}
+.s-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.box{background:var(--m-box);border-radius:var(--m-r);padding:10px 12px;font-size:12.5px}
+.box b{display:block;font-size:10px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--m-soft);font-weight:600;margin-bottom:4px}
+.box .big{font-family:var(--m-head);font-size:22px;font-weight:800;letter-spacing:-.03em}
+.s-cta{background:var(--m-ink);color:var(--m-bg);border-radius:var(--m-r);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700}
+.stamp{position:absolute;right:16px;top:52px;transform:rotate(8deg);border:2px solid var(--m-acc);color:var(--m-acc);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;background:var(--m-bg)}
+
+/* Content panels */
+.panel{padding-top:clamp(80px,13vh,150px);padding-bottom:clamp(80px,13vh,150px);display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(28px,6vw,96px);align-items:center}
+.panel .copy,.stack{display:flex;flex-direction:column;gap:22px}
+.panel p.body,.stack p.body{color:#cfd6e4;max-width:46ch}
+.block{padding-top:clamp(80px,13vh,150px);padding-bottom:clamp(80px,13vh,150px);display:flex;flex-direction:column;gap:34px}
+
+/* Outil : onglets */
+.app{border:1px solid var(--line);background:rgba(10,16,29,.95);max-width:1040px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{min-height:48px;padding:0 20px;border:0;border-bottom:2px solid transparent;background:none;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ivory)}
+.tab[aria-selected="true"]{color:var(--amber);border-bottom-color:var(--amber)}
+.tabpanel{padding:8px 0 0}
+.tabpanel[hidden]{display:none}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px;min-width:620px}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:400;text-align:left;padding:12px 18px;border-bottom:1px solid var(--line)}
+td{padding:13px 18px;border-bottom:1px solid rgba(38,52,79,.6);vertical-align:middle}
+td.n{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:#cfd6e4}
+td strong{font-weight:700;letter-spacing:-.01em}
+td small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+.tagnone{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid rgba(255,178,62,.5);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.mini{min-height:32px;padding:0 13px;border-radius:999px;border:1px solid var(--line);background:none;font-family:var(--display);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.mini:hover{border-color:var(--amber);color:var(--amber)}
+tr.locked td{filter:blur(5px);opacity:.55;user-select:none}
+.unlock{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;font-size:15px;color:#cfd6e4}
+.unlock b{color:var(--amber)}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px}
+.mk{border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;background:rgba(12,19,34,.7)}
+.mk .thumb{aspect-ratio:16/10;border-radius:6px;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;gap:5px;font-weight:800;letter-spacing:-.03em;font-size:17px;line-height:1}
+.mk .thumb i{display:block;height:6px;width:46%;border-radius:3px;opacity:.5;background:currentColor}
+.mk .t1{background:#f6f1e7;color:#17202e}.mk .t2{background:#fbfaf6;color:#12261c;font-family:Georgia,serif}.mk .t3{background:#101826;color:#ffb23e;border:1px solid #2b3a58}
+.mk h3{font-size:17px;font-weight:700;letter-spacing:-.02em}
+.state{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px;color:var(--mute)}
+.state::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--mute)}
+.state.shown{color:var(--ice)}.state.shown::before{background:var(--ice)}
+.state.sold{color:var(--amber)}.state.sold::before{background:var(--amber)}
+
+.say{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;counter-reset:say}
+.say li{counter-increment:say;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:baseline;font-size:clamp(19px,2vw,25px);font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.say li::before{content:counter(say);font-family:var(--mono);font-size:11px;color:var(--amber);border:1px solid var(--amber);border-radius:50%;width:26px;height:26px;display:grid;place-items:center}
+.say small{display:block;font-family:var(--mono);font-size:10.5px;font-weight:400;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin-top:5px}
+.phone{justify-self:center;width:min(250px,70vw);aspect-ratio:9/18.5;border-radius:34px;border:2px solid #33425f;background:#0a0f1b;padding:12px;box-shadow:0 30px 90px rgba(0,0,0,.55)}
+.phone .screen{height:100%;border-radius:22px;background:#f6f1e7;color:#17202e;padding:16px 14px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.phone strong{font-size:17px;font-weight:800;letter-spacing:-.03em}
+.phone .photo{min-height:84px}
+.phone h4{margin:0;font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1}
+.phone .pill{align-self:flex-start}
+.phone .link{margin-top:auto;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#5b6472;border-top:1px dashed #cfc5b0;padding-top:8px}
+.prompt{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.prompt header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.prompt pre{margin:0;padding:16px 14px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#dfe6f2;white-space:pre-wrap;overflow-x:auto}
+.prompt pre em{color:var(--amber);font-style:normal}
+
+.plans{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,5fr);gap:18px;align-items:stretch;max-width:900px}
+.plan{border:1px solid var(--line);background:rgba(12,19,34,.9);padding:26px;display:flex;flex-direction:column;gap:16px}
+.plan.pro{border-color:var(--amber);background:rgba(34,22,6,.9)}
+.plan h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.plan.pro h3{color:var(--amber)}
+.price{font-size:clamp(40px,5vw,60px);font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.price small{font-size:16px;font-weight:500;letter-spacing:0;color:var(--mute)}
+.plan ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px;color:#cfd6e4;font-size:16px}
+.plan li{padding-left:20px;position:relative}
+.plan li::before{content:"";position:absolute;left:0;top:.62em;width:9px;height:2px;background:var(--mute)}
+.plan.pro li::before{background:var(--amber)}
+.plan .btn{margin-top:auto;align-self:flex-start}
+
+.faq{max-width:820px;display:flex;flex-direction:column}
+.faq details{border-top:1px solid var(--line)}
+.faq details:last-child{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:18px;align-items:center;padding:20px 0;font-size:clamp(19px,2vw,24px);font-weight:700;letter-spacing:-.02em}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-family:var(--mono);font-weight:400;color:var(--amber);font-size:20px}
+.faq details[open] summary::after{content:"–"}
+.faq p{padding:0 0 22px;color:#cfd6e4;max-width:60ch}
+
+.final{min-height:96vh;display:flex;flex-direction:column;justify-content:center;gap:26px;padding-top:80px;padding-bottom:120px;background:linear-gradient(90deg,rgba(6,10,19,.88) 0,rgba(6,10,19,.42) 42%,transparent 68%)}
+.final h2{font-size:clamp(44px,7.6vw,112px);max-width:10ch}
+.scan{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.scan label{display:flex;flex-direction:column;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.scan input{min-height:46px;width:min(320px,78vw);padding:0 16px;border-radius:999px;border:1px solid var(--line);background:rgba(12,19,34,.9);color:var(--ivory);font-family:var(--display);font-size:17px}
+.scan input::placeholder{color:#6f7c96}
+.hero-scan{gap:8px;max-width:600px}.hero-scan input{width:min(300px,100%);flex:1 1 220px}
+.linkish{background:none;border:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ice);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+#scanmsg{font-family:var(--mono);font-size:11.5px;color:var(--ice);min-height:1.4em}
+footer a{color:inherit;text-decoration:none}footer a:hover{color:var(--ivory)}
+footer{position:relative;z-index:2;padding:22px var(--gutter) 56px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:flex;flex-wrap:wrap;gap:8px 22px;background:rgba(6,10,19,.75)}
+
+@media (max-width:1100px){.rail{display:none}}
+@media (max-width:820px){
+  .top nav a:not(.btn):not(.login){display:none}
+  .top nav{gap:14px}
+  .br{bottom:auto;top:66px;right:var(--gutter)}
+  .br .alt{display:none}
+  .readout{gap:12px;font-size:9.5px}
+  .hero{background:linear-gradient(0deg,rgba(6,10,19,.97) 0,rgba(6,10,19,.82) 48%,transparent 66%)}
+  .approach .pin{justify-content:stretch}
+  .stage{grid-template-columns:1fr;align-content:start;gap:12px;padding-top:66px}
+  .stage .copy{margin-top:0;padding:0;background:none;border:0;gap:8px}
+  .stage .copy .eyebrow{display:none}
+  .stage .copy .lede{font-size:15px;line-height:1.4;max-width:none}
+  .stage .photo{min-height:80px}
+  .s-nav span{display:none}
+  .panel,.plans,.cards{grid-template-columns:1fr}
+  .final{background:linear-gradient(0deg,rgba(6,10,19,.94) 0,rgba(6,10,19,.6) 60%,transparent)}
+}
+@media (pointer:coarse){.cursor{display:none}}
+@media (prefers-reduced-motion:reduce){.browser{transition:none}.grain{animation:none}.in .reveal{animation:none}.cursor{display:none}}
+</style>
+</head>
+<body>
+<div id="poster" aria-hidden="true"></div>
+<div id="scene" aria-hidden="true"><canvas id="city"></canvas><canvas id="over"></canvas></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="grain" id="grain" aria-hidden="true"></div>
+<div class="cursor" id="cursor" aria-hidden="true"></div>
+
+<header class="hud top">
+  <a class="mark" href="#top"><i aria-hidden="true"></i>PopSite</a>
+  <nav aria-label="Navigation">
+    <a href="#pop">La maquette</a>
+    <a href="#outil">L'outil</a>
+    <a href="#pitch">En boutique</a>
+    <a href="#tarif">Tarif</a>
+    <a href="#questions">Questions</a>
+    <a class="login" href="#connexion">Connexion</a>
+    <a class="btn small" href="#radar">Scanner ma ville</a>
+  </nav>
+</header>
+<div class="hud loadv" id="loadv" role="status"><span>Chargement du village 3D</span><i></i><b id="loadp">0 %</b></div>
+<div class="hud readout" aria-hidden="true">
+  <span>Rayon <b>1,2 km</b></span>
+  <span><b id="hud-all">61</b> commerces analysés</span>
+  <span class="amb"><b id="hud-none">23</b> sans site</span>
+</div>
+<div class="hud br">
+  <div class="wx" role="group" aria-label="Météo de la démonstration">
+    <button type="button" data-wx="pluie" aria-pressed="true">Pluie</button>
+    <button type="button" data-wx="neige" aria-pressed="false">Neige</button>
+    <button type="button" data-wx="clair" aria-pressed="false">Clair</button>
+    <button type="button" id="pause" aria-pressed="false">Pause</button>
+  </div>
+  <span class="alt" aria-hidden="true">Vent <b id="hud-wind">14</b> km/h <b id="hud-dir">NO</b> · Alt <b id="hud-alt">205</b> m</span>
+</div>
+<nav class="rail" aria-label="Sections">
+  <a href="#top"><span>Radar</span></a>
+  <a href="#pop"><span>La maquette</span></a>
+  <a href="#outil"><span>L'outil</span></a>
+  <a href="#pitch"><span>En boutique</span></a>
+  <a href="#ia"><span>Ton IA</span></a>
+  <a href="#tarif"><span>Tarif</span></a>
+  <a href="#questions"><span>Questions</span></a>
+  <a href="#essai"><span>À toi</span></a>
+</nav>
+
+<main id="top">
+  <section class="hero">
+    <p class="eyebrow">Radar à commerces sans site</p>
+    <h1 class="reveal"><span class="num" id="count">23</span> commerces sans site autour de toi.</h1>
+    <p class="lede reveal d1">PopSite scanne ta zone, repère les commerces qui n'ont pas de site et fait apparaître leur maquette en un clic. Toi, tu pousses la porte et tu la montres.</p>
+    <div class="chips reveal d2" id="chips" role="group" aria-label="Filtrer par type de commerce">
+      <button class="chip" type="button" data-cat="all" aria-pressed="true">Tous <b>23</b></button>
+      <button class="chip" type="button" data-cat="resto" aria-pressed="false">Restauration <b>4</b></button>
+      <button class="chip" type="button" data-cat="beaute" aria-pressed="false">Beauté <b>4</b></button>
+      <button class="chip" type="button" data-cat="auto" aria-pressed="false">Auto <b>3</b></button>
+      <button class="chip" type="button" data-cat="artisan" aria-pressed="false">Artisans <b>5</b></button>
+      <button class="chip" type="button" data-cat="commerce" aria-pressed="false">Commerces <b>7</b></button>
+    </div>
+    <form class="scan hero-scan reveal d3" id="scan-hero" role="search" aria-label="Scanner ma ville">
+      <input id="ville-hero" name="ville" type="text" autocomplete="address-level2" placeholder="Ta ville ou ton code postal" aria-label="Ta ville ou ton code postal">
+      <button class="btn" type="submit">Scanner ma ville</button>
+    </form>
+    <p class="fine">Gratuit, sans carte bancaire · <button class="linkish" id="rescan" type="button">Relancer le radar de démo</button></p>
+  </section>
+
+  <section class="approach" aria-label="Un commerce repéré">
+    <div class="pin">
+      <article class="card reveal">
+        <p class="eyebrow">Cible 07 / 23</p>
+        <h3>Garage Perrin</h3>
+        <dl>
+          <dt>Activité</dt><dd>Mécanique auto</dd>
+          <dt>Adresse</dt><dd>12 rue des Tanneurs</dd>
+          <dt>Téléphone</dt><dd>Connu</dd>
+          <dt>Site web</dt><dd class="none">Aucun</dd>
+        </dl>
+        <p>Connu dans le quartier, introuvable en ligne. C'est le client idéal.</p>
+        <p class="fine">Fiche fictive</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="pop" id="pop">
+    <div class="stage">
+      <div class="copy">
+        <p class="eyebrow">Étape suivante</p>
+        <h2 class="reveal">Un clic, et son site pop.</h2>
+        <p class="lede reveal d1">PopSite reprend le nom, l'adresse, le téléphone et les horaires du commerce, puis monte une maquette complète. Le gérant voit son propre site avant d'avoir dit oui.</p>
+        <div class="styles reveal d2" id="styles" role="group" aria-label="Style de la maquette">
+          <span>Style</span>
+          <button class="chip" type="button" data-style="" aria-pressed="true">Atelier</button>
+          <button class="chip" type="button" data-style="vitrine" aria-pressed="false">Vitrine</button>
+          <button class="chip" type="button" data-style="nuit" aria-pressed="false">Nuit</button>
+        </div>
+      </div>
+      <div class="browser" id="browser">
+        <div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url" id="url">garage-perrin.fr</span></div>
+        <div class="site">
+          <div class="blk s-nav"><strong>Garage Perrin</strong><span><span>Services</span><span>Horaires</span><span>Contact</span></span><span class="pill">Prendre RDV</span></div>
+          <div class="blk s-hero"><div><h4>Votre voiture, entre de bonnes mains.</h4><p>Entretien, pneus, freins et clim.<br>12 rue des Tanneurs.</p></div><div class="photo">Photo de l'atelier</div></div>
+          <div class="blk s-chips"><span>Révision</span><span>Pneus</span><span>Freins</span><span>Climatisation</span><span>Contrôle avant vente</span></div>
+          <div class="blk s-two"><div class="box"><b>Horaires</b>Lun–Ven 8h–18h30<br>Samedi 9h–12h</div><div class="box"><b>Avis Google</b><span class="big">4,7 ★</span> · 86 avis</div></div>
+          <div class="blk s-cta"><span>Une question, un devis ?</span><span class="pill">Appeler le garage</span></div>
+        </div>
+        <div class="blk stamp">Maquette prête</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="outil">
+    <div class="stack">
+      <p class="eyebrow">L'outil</p>
+      <h2 class="reveal">Ta liste de clients, déjà triée.</h2>
+      <p class="body reveal d1">Chaque scan te sort les commerces sans site, classés par potentiel. Tu vérifies, tu fais popper la maquette, tu suis où tu en es.</p>
+    </div>
+    <div class="app reveal d2">
+      <div class="tabs" role="tablist" aria-label="Vues de l'outil">
+        <button class="tab" role="tab" id="tab-liste" aria-controls="p-liste" aria-selected="true" type="button">Commerces trouvés</button>
+        <button class="tab" role="tab" id="tab-maq" aria-controls="p-maq" aria-selected="false" type="button" tabindex="-1">Mes maquettes</button>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="p-liste" aria-labelledby="tab-liste">
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Commerce</th><th>Potentiel</th><th>Distance</th><th>Site</th><th><span class="fine">Action</span></th></tr></thead>
+          <tbody>
+            <tr><td><strong>Garage Perrin</strong><small>Mécanique auto</small></td><td class="n"><span class="ap-pot" aria-label="Potentiel 3 sur 3"><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td class="n">350 m</td><td><span class="tagnone">Aucun</span></td><td><button class="mini" type="button">Faire popper</button></td></tr>
+            <tr><td><strong>La Table d'Odile</strong><small>Restaurant</small></td><td class="n"><span class="ap-pot" aria-label="Potentiel 3 sur 3"><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td class="n">120 m</td><td><span class="tagnone">Aucun</span></td><td><button class="mini" type="button">Faire popper</button></td></tr>
+            <tr><td><strong>Coiffure Mylène</strong><small>Salon de coiffure</small></td><td class="n"><span class="ap-pot" aria-label="Potentiel 2 sur 3"><i class="on"></i><i class="on"></i><i></i></span></td><td class="n">210 m</td><td><span class="tagnone">Aucun</span></td><td><button class="mini" type="button">Faire popper</button></td></tr>
+            <tr class="locked" aria-hidden="true"><td><strong>Boucherie Vasseur</strong><small>Boucherie</small></td><td class="n"><span class="ap-pot" aria-label="Potentiel 2 sur 3"><i class="on"></i><i class="on"></i><i></i></span></td><td class="n">180 m</td><td><span class="tagnone">Aucun</span></td><td><span class="mini">Faire popper</span></td></tr>
+            <tr class="locked" aria-hidden="true"><td><strong>Menuiserie Roche</strong><small>Menuisier</small></td><td class="n"><span class="ap-pot" aria-label="Potentiel 2 sur 3"><i class="on"></i><i class="on"></i><i></i></span></td><td class="n">640 m</td><td><span class="tagnone">Aucun</span></td><td><span class="mini">Faire popper</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="unlock"><span>Version gratuite : <b>3 commerces visibles</b> sur 23. Les 20 autres se débloquent avec Pro.</span><a class="btn small" href="#tarif">Voir le tarif</a></div>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="p-maq" aria-labelledby="tab-maq" hidden>
+        <div class="cards">
+          <article class="mk"><div class="thumb t1">Garage Perrin<i></i></div><h3>Garage Perrin</h3><span class="state sold">Vendue</span></article>
+          <article class="mk"><div class="thumb t2">La Table d'Odile<i></i></div><h3>La Table d'Odile</h3><span class="state shown">Montrée, à relancer</span></article>
+          <article class="mk"><div class="thumb t3">Coiffure Mylène<i></i></div><h3>Coiffure Mylène</h3><span class="state">À montrer</span></article>
+        </div>
+      </div>
+    </div>
+    <p class="fine">Exemple d'écran, données fictives</p>
+  </section>
+
+  <section class="panel" id="pitch">
+    <div class="copy">
+      <p class="eyebrow">En boutique</p>
+      <h2 class="reveal">Tu entres, tu montres, tu repars avec un client.</h2>
+      <ol class="say">
+        <li class="reveal d1"><span>« Bonjour, je suis du coin. J'ai vu que vous n'aviez pas de site. »</span></li>
+        <li class="reveal d2"><span>« Je vous en ai préparé un, regardez. »<small>Tu tends ton téléphone</small></span></li>
+        <li class="reveal d3"><span>« Si ça vous plaît, il est en ligne cette semaine. »</span></li>
+      </ol>
+    </div>
+    <div class="phone reveal d2" aria-label="La maquette ouverte sur un téléphone">
+      <div class="screen">
+        <strong>Garage Perrin</strong>
+        <div class="photo">Photo de l'atelier</div>
+        <h4>Votre voiture, entre de bonnes mains.</h4>
+        <span class="pill">Prendre RDV</span>
+        <div class="link">Lien de la maquette, à montrer sur place</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="ia">
+    <div class="copy">
+      <p class="eyebrow">Après le oui</p>
+      <h2 class="reveal">Ton IA construit le vrai site.</h2>
+      <p class="body reveal d1">PopSite écrit le prompt complet à partir de la maquette validée. Tu le colles dans Claude Code, Codex ou Lovable, et le site sort tout seul.</p>
+    </div>
+    <div class="prompt reveal d2">
+      <header><span>Prompt de construction</span><button class="btn ghost small" id="copy" type="button">Copier</button></header>
+<pre id="prompt-text">Construis le site vitrine de <em>« Garage Perrin »</em>,
+mécanique auto, <em>12 rue des Tanneurs</em>.
+Reprends la maquette validée : palette, textes, sections.
+Pages : Accueil, Services, Horaires, Contact.
+Mobile d'abord. Bouton <em>« Prendre RDV »</em> sur chaque page.</pre>
+    </div>
+  </section>
+
+  <section class="block" id="tarif">
+    <div class="stack">
+      <p class="eyebrow">Tarif</p>
+      <h2 class="reveal">Un site vendu rembourse l'année.</h2>
+      <p class="body reveal d1">Un seul site vendu 350 €, c'est 23 mois de PopSite Pro payés. Le reste, c'est pour toi.</p>
+    </div>
+    <div class="plans">
+      <article class="plan reveal d1">
+        <h3>Gratuit</h3>
+        <p class="price">0 €</p>
+        <ul><li>1 scan de zone par mois</li><li>3 commerces visibles par scan</li><li>1 maquette par mois</li><li>Sans carte bancaire</li></ul>
+        <a class="btn ghost" href="#inscription">Essayer</a>
+      </article>
+      <article class="plan pro reveal d2">
+        <h3>Pro</h3>
+        <p class="price">14,99 € <small>par mois</small></p>
+        <ul><li>Tous les commerces de chaque scan</li><li>60 scans et 100 maquettes par mois</li><li>3 styles de maquette</li><li>Mode boutique : la maquette en plein écran sur ton téléphone</li><li>Prompt de construction pour ton IA</li><li>Suivi : à montrer, montrée, vendue</li></ul>
+        <a class="btn" href="#tarifs">Passer Pro</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="block" id="questions">
+    <div class="stack">
+      <p class="eyebrow">Questions</p>
+      <h2 class="reveal">Ce qu'on nous demande.</h2>
+    </div>
+    <div class="faq reveal d1">
+      <details open><summary>C'est pour qui ?</summary><p>Pour tous ceux qui veulent vendre des sites aux commerçants du coin : étudiants, freelances, créateurs qui débutent. Pas besoin de savoir coder, ni d'avoir déjà des clients.</p></details>
+      <details><summary>D'où viennent les commerces ?</summary><p>D'OpenStreetMap, la carte libre et collaborative. Chaque résultat a un bouton pour vérifier sur Google avant de te déplacer.</p></details>
+      <details><summary>Et si le commerce a déjà un site ?</summary><p>Ça arrive, la carte n'est pas toujours à jour. Tu vérifies en un clic et tu retires le commerce de ta liste.</p></details>
+      <details><summary>Je ne sais pas coder, ça marche quand même ?</summary><p>Oui. PopSite te donne la maquette et le prompt. C'est ton IA qui construit le site : Claude Code, Codex ou Lovable.</p></details>
+      <details><summary>Combien vendre un site ?</summary><p>C'est toi qui fixes ton prix. PopSite ne prend rien sur tes ventes.</p></details>
+      <details><summary>Je peux arrêter quand je veux ?</summary><p>Oui, l'abonnement Pro est sans engagement.</p></details>
+    </div>
+  </section>
+
+  <section class="final" id="essai">
+    <p class="eyebrow">À toi</p>
+    <h2 class="reveal">Lance le radar sur ta ville.</h2>
+    <form class="scan reveal d1" id="scan">
+      <label for="ville">Ta ville ou ton code postal
+        <input id="ville" name="ville" type="text" autocomplete="address-level2" placeholder="Ex. 71460">
+      </label>
+      <button class="btn" type="submit">Scanner</button>
+    </form>
+    <p id="scanmsg" role="status"></p>
+  </section>
+</main>
+<footer><span>PopSite</span><a href="#radar">Radar</a><a href="#tarifs">Tarifs</a><a href="#aide">Aide</a><a href="#mentions">Mentions légales</a><span>Village de l'accueil, commerces et avis fictifs</span></footer>
+<div id="app"></div>
+<script type="module" src="js/app/app.js"></script>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

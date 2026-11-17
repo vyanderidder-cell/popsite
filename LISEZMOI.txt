@@ -1,0 +1,15 @@
+PopSite — mettre le site en ligne (gratuit, 2 minutes)
+
+1. Dézippe ce dossier.
+2. Va sur https://app.netlify.com/drop (crée un compte gratuit si besoin).
+3. Glisse le dossier « popsite » entier dans la page.
+4. Netlify te donne une adresse en .netlify.app : ouvre-la, va dans Radar,
+   tape ta ville : la recherche OpenStreetMap marche pour de vrai.
+
+Bon à savoir
+- Les comptes et le suivi sont gardés dans le navigateur (bêta, pas encore de serveur).
+- Le paiement n'est pas branché : active Pro en « mode test » dans Mon compte.
+- Mentions légales : remplace les champs [entre crochets] avant d'ouvrir au public.
+- Partage sur les réseaux : une fois en ligne, remplace dans index.html
+  content="img/og.jpg" par l'adresse complète (ex. https://popsite.netlify.app/img/og.jpg)
+  pour que l'aperçu s'affiche partout.
