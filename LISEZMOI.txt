@@ -1,3 +1,6 @@
+PopSite est en ligne : https://popsite-pi.vercel.app
+Chaque push sur GitHub (vyanderidder-cell/popsite, branche main) redéploie le site automatiquement sur Vercel.
+
 PopSite — mettre le site en ligne (gratuit, 2 minutes)
 
 1. Dézippe ce dossier.

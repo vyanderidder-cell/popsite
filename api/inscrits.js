@@ -3,7 +3,7 @@ import { list } from '@vercel/blob';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  const key = req.headers['x-admin-key'] || '';
+  const key = req.headers['x-admin-key'] || (req.query && req.query.key) || '';
   if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) return res.status(401).json({ ok: false });
   try {
     const blobs = [];

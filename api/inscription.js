@@ -5,6 +5,11 @@ const seen = new Map();
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  // contrôle de santé réservé à l'admin : /api/inscription?key=...&test=1 enregistre une ligne « test »
+  if (req.method === 'GET' && process.env.ADMIN_KEY && req.query && req.query.key === process.env.ADMIN_KEY && req.query.test) {
+    try { await put('inscrits/' + Date.now() + '-test.json', JSON.stringify({ at: new Date().toISOString(), source: 'test', email: 'test@popsite', prenom: 'Test', ville: '' }), { access: 'public', contentType: 'application/json', addRandomSuffix: true }); return res.status(200).json({ ok: true }); }
+    catch (e) { return res.status(500).json({ ok: false, error: String(e && e.message || e) }); }
+  }
   if (req.method !== 'POST') return res.status(405).json({ ok: false });
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }

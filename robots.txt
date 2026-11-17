@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /m.html
+Sitemap: https://popsite-pi.vercel.app/sitemap.xml

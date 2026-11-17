@@ -1,6 +1,6 @@
 /* PopSite — lien de maquette (toute la maquette tient dans l'adresse, aucun serveur) et QR code */
 
-export const SITE_URL = 'https://popsite.vercel.app';
+export const SITE_URL = 'https://popsite-pi.vercel.app';
 /* adresse publique du site : le domaine réel une fois en ligne, l'adresse Vercel dans l'aperçu */
 export const siteBase = () => (window.claude || location.protocol === 'file:') ? SITE_URL : location.origin;
 
