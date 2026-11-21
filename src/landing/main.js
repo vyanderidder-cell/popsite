@@ -249,7 +249,7 @@ async function start() {
     const A = SH[a], B = SH[b];
     want.pos.lerpVectors(A.pos, B.pos, t); want.tgt.lerpVectors(A.tgt, B.tgt, t);
     // arc : on s'élève un peu entre deux plans éloignés
-    const lift = Math.sin(t * Math.PI) * Math.min(14, A.pos.distanceTo(B.pos) * 0.18); want.pos.y += lift;
+    const lift = Math.sin(t * Math.PI) * Math.min(26, A.pos.distanceTo(B.pos) * 0.3); want.pos.y += lift;
     want.off = [lerp(A.off[0], B.off[0], t), lerp(A.off[1], B.off[1], t)];
   }
 
