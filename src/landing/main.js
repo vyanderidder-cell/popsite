@@ -9,7 +9,8 @@ import { RenderPass } from '../vendor/three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from '../vendor/three/addons/postprocessing/ShaderPass.js';
-import { buildWorld, groundTexture, glassMaterials, riseUniforms, withRise, radarMaterial, beaconMaterial, poolMaterial, snow, rng, AMBER } from './world.js';
+import { buildWorld, groundTexture, glowMaterial, riseUniforms, withRise, radarMaterial, beaconMaterial, poolMaterial, snow, rng, AMBER } from './world.js';
+import { loadModels, CHURCH } from './models.js';
 import { drawMock, drawSign, MW, MH, SLICES } from './mocktex.js';
 import { initPage } from './page.js';
 
@@ -49,9 +50,12 @@ async function start() {
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+  // bâtiments Blender : chargés pendant qu'on attend les polices
+  const modelsP = loadModels('/assets/models/', p => progress(0.05 + p * 0.3));
   // polices prêtes avant de dessiner les textures
   try { await Promise.race([Promise.all([document.fonts.load('800 80px "Big Shoulders"'), document.fonts.load('500 20px "Instrument Sans"'), document.fonts.load('650 20px "Instrument Sans"')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
-  progress(0.2);
+  const MD = await modelsP;
+  progress(0.38);
 
   const scene = new THREE.Scene();
   const NIGHT = new THREE.Color(0x070d1a);
@@ -80,22 +84,55 @@ async function start() {
   }
   const warm = new THREE.PointLight(0xffa24a, 0, 16, 1.8); scene.add(warm);
 
-  const W = buildWorld(7, { lite: lite || small });
+  const W = buildWorld(7, { lite: lite || small, models: MD });
   progress(0.4);
   window.__dvShops = W.shops.length;
   if (Q.has('nohud')) document.documentElement.classList.add('nohud');
   const U = riseUniforms();
-  const glass = glassMaterials(lite);
-  withRise(glass.wall, U, 'wall', new THREE.Color(0.34, 0.6, 1.0).multiplyScalar(0.8)); withRise(glass.roof, U, 'roof', new THREE.Color(0.34, 0.6, 1.0).multiplyScalar(0.6));
-  const mWalls = new THREE.Mesh(W.geo.walls, glass.wall), mRoofs = new THREE.Mesh(W.geo.roofs, glass.roof);
-  const mCores = new THREE.Mesh(W.geo.cores, withRise(new THREE.MeshStandardMaterial({ color: 0x172a4f, roughness: 0.6, metalness: 0.08 }), U, 'cores'));
-  const mWins = new THREE.Mesh(W.geo.wins, withRise(new THREE.MeshBasicMaterial({ vertexColors: true }), U, 'wins'));
+  const riseDepth = key => withRise(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), U, 'depth-' + key);
+
+  // bâtiments : un InstancedMesh par modèle et par matériau, couleurs par instance
+  const solids = {}, glows = {};
+  const matFor = (mat, model) => {
+    if (mat === 'Fenetre' || mat === 'Vitrine') {
+      const mode = mat === 'Vitrine' ? 'shop' : model === CHURCH ? 'church' : 'win';
+      return glows[mode] || (glows[mode] = glowMaterial(U, mode));
+    }
+    return solids[mat] || (solids[mat] = withRise(new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: mat === 'Porte' || mat === 'Volet' ? 0.6 : 0.85, metalness: 0,
+      emissive: mat === 'Enseigne' ? 0x2a2216 : 0x000000
+    }), U, 'bld-' + mat));
+  };
+  const SHADOW = new Set(['Mur', 'Toit', 'Encadrement', 'Porte', 'Volet']);
+  const depthBld = riseDepth('bld');
+  const byModel = {};
+  for (const it of W.items) (byModel[it.model] = byModel[it.model] || []).push(it);
+  // la nuit, les teintes des façades restent lisibles mais sourdes : les fenêtres allumées font la lumière
+  const NIGHT_K = Q.get('night') ? +Q.get('night') : 0.42;
+  const tc = new THREE.Color();
+  for (const [name, list] of Object.entries(byModel)) {
+    for (const part of MD[name].parts) {
+      const mesh = new THREE.InstancedMesh(part.geometry, matFor(part.mat, name), list.length);
+      const delay = new Float32Array(list.length);
+      list.forEach((it, i) => {
+        mesh.setMatrixAt(i, it.m); delay[i] = it.delay;
+        const t = it.tint;
+        if (t && t[part.mat]) tc.copy(t[part.mat]);
+        else { tc.copy(part.color); if (t && part.mat === 'Toit') tc.multiplyScalar(t.roofK); }
+        if (part.mat !== 'Fenetre' && part.mat !== 'Vitrine') tc.multiplyScalar(NIGHT_K);
+        mesh.setColorAt(i, tc);
+      });
+      part.geometry.setAttribute('aDelay', new THREE.InstancedBufferAttribute(delay, 1));
+      mesh.receiveShadow = true;
+      if (SHADOW.has(part.mat)) { mesh.castShadow = true; mesh.customDepthMaterial = depthBld; }
+      mesh.computeBoundingSphere();
+      scene.add(mesh);
+    }
+  }
   const mLamps = new THREE.Mesh(W.geo.lamps, withRise(new THREE.MeshBasicMaterial({ vertexColors: true }), U, 'lamps'));
   const mPoles = new THREE.Mesh(W.geo.poles, withRise(new THREE.MeshStandardMaterial({ color: 0x22324f, roughness: 0.5, metalness: 0.5 }), U, 'poles'));
-  scene.add(mCores, mWins, mLamps, mPoles, mWalls, mRoofs);
-  mCores.castShadow = mCores.receiveShadow = true; mPoles.castShadow = true;
-  const riseDepth = key => withRise(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), U, 'depth-' + key);
-  mCores.customDepthMaterial = riseDepth('cores'); mPoles.customDepthMaterial = riseDepth('poles');
+  scene.add(mLamps, mPoles);
+  mPoles.castShadow = true; mPoles.customDepthMaterial = riseDepth('poles');
   if (W.geo.trees) {
     const tm = withRise(new THREE.MeshStandardMaterial({ color: 0x1d3a5c, roughness: 0.42, metalness: 0.15, flatShading: true }), U, 'trees');
     const mTrees = new THREE.Mesh(W.geo.trees, tm); mTrees.castShadow = true; mTrees.customDepthMaterial = riseDepth('trees'); scene.add(mTrees);
@@ -115,6 +152,12 @@ async function start() {
 
   // commerces sans site : intérieur, halo, colonne
   const T = W.targetSlots, NT = T.length;
+  // l'intérieur allumé se pose juste devant le vitrage de la vitrine du modèle
+  T.forEach(s => {
+    const v = MD[s.b.model].vitrine, c = v.getCenter(new THREE.Vector3()), sz = v.getSize(new THREE.Vector3());
+    s.m = s.b.m.clone().multiply(new THREE.Matrix4().makeTranslation(c.x, c.y, v.max.z + 0.012));
+    s.w = sz.x; s.h = sz.y; s.d = 0.02;
+  });
   const vitrineMat = new THREE.ShaderMaterial({
     vertexShader: `varying vec2 vUv; varying vec3 vC; void main(){ vUv = uv; vC = instanceColor; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position,1.0); }`,
     fragmentShader: `varying vec2 vUv; varying vec3 vC; void main(){
@@ -137,12 +180,12 @@ async function start() {
   pools.geometry.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
   T.forEach((s, i) => {
     const b = s.b, fx = Math.sin(b.rot), fz = Math.cos(b.rot), ox = b.x + fx * (b.d / 2 + 1.6), oz = b.z + fz * (b.d / 2 + 1.6);
-    M4.compose(new THREE.Vector3(b.x, b.h + b.d * 0.42, b.z), Qt.identity(), new THREE.Vector3(1, b.hero ? 7 : 4.2 + (i % 3) * 0.8, 1)); beacons.setMatrixAt(i, M4);
+    M4.compose(new THREE.Vector3(b.x, b.top, b.z), Qt.identity(), new THREE.Vector3(1, b.hero ? 7 : 4.2 + (i % 3) * 0.8, 1)); beacons.setMatrixAt(i, M4);
     M4.compose(new THREE.Vector3(ox, 0.08, oz), Qt.identity(), new THREE.Vector3(b.hero ? 9 : 7, 1, b.hero ? 9 : 7)); pools.setMatrixAt(i, M4);
     phase[i] = (i * 0.37) % 1; s.ang = Math.atan2(b.z, b.x); s.found = -1;
   });
   const pins = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.34, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), Math.max(1, NT));
-  T.forEach((s, i) => { const b = s.b; s.pinY = b.h + b.d * 0.42 + (b.hero ? 7 : 4.2 + (i % 3) * 0.8); pins.setColorAt(i, new THREE.Color(0, 0, 0)); });
+  T.forEach((s, i) => { const b = s.b; s.pinY = b.top + (b.hero ? 7 : 4.2 + (i % 3) * 0.8); pins.setColorAt(i, new THREE.Color(0, 0, 0)); });
   pins.frustumCulled = false; scene.add(pins);
   beacons.frustumCulled = pools.frustumCulled = false; beacons.renderOrder = 3; pools.renderOrder = 2;
   scene.add(beacons, pools);
@@ -150,10 +193,14 @@ async function start() {
   // le commerce vedette
   const H = W.hero, nH = new THREE.Vector3(Math.sin(H.rot), 0, Math.cos(H.rot)), tH = new THREE.Vector3(Math.cos(H.rot), 0, -Math.sin(H.rot));
   const face = new THREE.Vector3(H.x, 0, H.z).addScaledVector(nH, H.d / 2);
-  const signCv = document.createElement('canvas'); signCv.width = 1024; signCv.height = 168; drawSign(signCv, H.name);
+  // l'enseigne du commerce vedette se pose sur le panneau Enseigne du modèle
+  const sg = MD[H.model].sign, sgS = sg.getSize(new THREE.Vector3()), hS = new THREE.Vector3();
+  H.m.decompose(new THREE.Vector3(), new THREE.Quaternion(), hS);
+  const signCv = document.createElement('canvas'); signCv.width = 1024; signCv.height = Math.round(1024 * (sgS.y * hS.y) / (sgS.x * hS.x)); drawSign(signCv, H.name);
   const signTex = new THREE.CanvasTexture(signCv); signTex.colorSpace = THREE.SRGBColorSpace; signTex.anisotropy = 8;
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(H.w * 0.86, H.w * 0.86 * 168 / 1024), new THREE.MeshBasicMaterial({ map: signTex, transparent: true, color: new THREE.Color(2.2, 2.2, 2.2) }));
-  sign.position.copy(face).addScaledVector(nH, 0.2).add(new THREE.Vector3(0, 2.95, 0)); sign.rotation.y = H.rot; sign.visible = false; scene.add(sign);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(sgS.x, sgS.y), new THREE.MeshBasicMaterial({ map: signTex, transparent: true, color: new THREE.Color(2.2, 2.2, 2.2) }));
+  sign.position.copy(sg.getCenter(new THREE.Vector3()).setZ(sg.max.z + 0.012)).applyMatrix4(H.m);
+  sign.rotation.y = H.rot; sign.scale.set(hS.x, hS.y, 1); sign.visible = false; scene.add(sign);
   warm.position.copy(face).addScaledVector(nH, 2.5).add(new THREE.Vector3(0, 2.2, 0));
 
   // la maquette qui sort de la vitrine

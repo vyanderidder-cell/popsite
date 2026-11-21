@@ -1,7 +1,8 @@
-/* Devanture — le village de verre : rues, maisons, commerces, église, arbres, sol, radar, balises. */
+/* Devanture — le village : rues, maisons, commerces, église, arbres, sol, radar, balises.
+   Les bâtiments sont les modèles Blender (models.js), posés sur des emprises tirées au hasard. */
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from '../vendor/three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
+import { HOUSES, SHOPS, CHURCH } from './models.js';
 
 export const AMBER = new THREE.Color(1.0, 0.62, 0.22);
 export const SCAN = new THREE.Color(0.36, 0.8, 1.0);
@@ -68,15 +69,12 @@ function overlap(A, B) { // SAT sur deux rectangles
 }
 const EXT = 72;
 
-/* ---------- géométries d'un bâtiment ---------- */
-function gableRoof(len, depth, h, over) {
-  const sh = new THREE.Shape();
-  sh.moveTo(-depth / 2 - over, 0); sh.lineTo(depth / 2 + over, 0); sh.lineTo(0, h); sh.closePath();
-  const g = new THREE.ExtrudeGeometry(sh, { depth: len + over * 2, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.08, bevelSegments: 2, curveSegments: 1 });
-  g.translate(0, 0, -(len + over * 2) / 2);
-  g.rotateY(Math.PI / 2); // faîtage parallèle à la rue (axe x local)
-  return g;
-}
+/* ---------- teintes : chaque maison reçoit ses couleurs de façade, de volets et de devanture ---------- */
+const WALLS = ['#E8DCC0', '#D9B27A', '#EFE9DE', '#E3C2AE', '#E6CF8F', '#E4DED2', '#E9D3B0', '#D8C9A8', '#CDBB9C', '#F0E2C8', '#DCC6A0', '#E7D7C9'];
+const SHUTTERS = ['#5D7A8C', '#5E7D56', '#8E3A32', '#8A8F94', '#7FA3B8', '#8C2F2F', '#2F5C7A', '#6E8B6A', '#A9B7AE', '#4F6A80'];
+const FRONTS = ['#2F4F3E', '#1F3A52', '#6B2D2D', '#3D3D45', '#5A4632', '#2E5A5A'];
+
+/* ---------- géométries simples (réverbères, arbres) ---------- */
 function prep(g, delay, m) {
   if (g.index) g = g.toNonIndexed();
   g.deleteAttribute('uv');
@@ -103,7 +101,7 @@ const NAMES = [
 ];
 
 export function buildWorld(seed = 7, opts = {}) {
-  const R = rng(seed), lite = !!opts.lite;
+  const R = rng(seed), lite = !!opts.lite, MD = opts.models;
   const roads = sampleRoads();
   const B = [], boxes = []; // bâtiments et leurs emprises
   const delayOf = (x, z) => 0.15 + Math.hypot(x, z) / 70 * 1.6 + R() * 0.25;
@@ -124,10 +122,10 @@ export function buildWorld(seed = 7, opts = {}) {
     B.push(b); return b;
   }
 
-  // église, juste derrière la place
-  const church = { x: -15.5, z: -13.5, rot: 0.42 };
-  claim(church.x, church.z, church.rot, 8.4, 17.5);
-  claim(church.x - Math.sin(church.rot) * 10.6, church.z - Math.cos(church.rot) * 10.6, church.rot, 5.2, 5.2);
+  // église, juste derrière la place, clocher et portail tournés vers elle
+  const cs = MD[CHURCH].box.getSize(new THREE.Vector3());
+  const church = { x: -15.5, z: -13.5, rot: 0.42, w: cs.x + 0.4, d: cs.z + 0.2 };
+  claim(church.x, church.z, church.rot, church.w, church.d);
 
   // tour de la place : façades tournées vers le centre
   {
@@ -193,76 +191,44 @@ export function buildWorld(seed = 7, opts = {}) {
   // cibles : commerces sans site
   const shops = B.filter(b => b.shop);
   shops.sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z));
-  let nT = 0;
-  for (const b of shops) { if (b.hero || (nT < 22 && R() < 0.66)) { b.target = true; nT++; } }
+  // 22 commerces sans site (le chiffre du texte) dès qu'il y a assez de commerces ; le hasard ne saute
+  // que le surplus
+  let nT = 0, skip = shops.length - 22;
+  for (const b of shops) {
+    if (b.hero || (nT < 22 && (skip <= 0 || R() < 0.66))) { b.target = true; nT++; } else skip--;
+  }
   const targets = shops.filter(b => b.target);
   targets.sort((a, b) => (b.hero ? 1 : 0) - (a.hero ? 1 : 0));
   targets.forEach((b, i) => { b.name = NAMES[i % NAMES.length][0]; b.cat = NAMES[i % NAMES.length][1]; });
 
-  /* ---------- géométries : coque de verre, cœur sombre, fenêtres nettes ---------- */
-  const walls = [], roofs = [], cores = [], wins = [], lamps = [], poles = [], trees = [], trunks = [];
+  /* ---------- bâtiments : le modèle Blender le plus proche de chaque emprise ---------- */
+  const lamps = [], poles = [], trees = [], trunks = [];
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), S1 = new THREE.Vector3(1, 1, 1);
   const place = (x, y, z, rot) => M.compose(new THREE.Vector3(x, y, z), Q.setFromAxisAngle(Y, rot), S1).clone();
-  const loc = (b, lx, y, lz) => { const c = Math.cos(b.rot), s = Math.sin(b.rot); return place(b.x + lx * c + lz * s, y, b.z - lx * s + lz * c, b.rot); };
-  const warm = () => new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(0.85 + R() * 0.75);
-  const OFF = new THREE.Color(0.045, 0.07, 0.12), TV = new THREE.Color(0.45, 0.62, 1.0), COOL = new THREE.Color(0.6, 0.78, 1.0).multiplyScalar(0.95), DOOR = new THREE.Color(0.02, 0.03, 0.05);
-  const pane = (b, lx, y, lz, w, h, col, dl) => wins.push(colored(prep(new THREE.BoxGeometry(w, h, 0.06), dl, loc(b, lx, y, lz)), col));
-  const targetSlots = [];
+  const RM = rng(seed * 31 + 5), pick = a => new THREE.Color(a[Math.floor(RM() * a.length)]);
+  const items = [];
   for (const b of B) {
-    const dl = delayOf(b.x, b.z);
-    walls.push(prep(new RoundedBoxGeometry(b.w, b.h, b.d, 2, 0.16), dl, place(b.x, b.h / 2, b.z, b.rot)));
-    const rh = b.d * (0.36 + R() * 0.14);
-    roofs.push(prep(gableRoof(b.w, b.d, rh, 0.22), dl, place(b.x, b.h, b.z, b.rot)));
-    const cw = b.w - 0.46, ch = b.h - 0.24, cd = b.d - 0.46;
-    cores.push(prep(new THREE.BoxGeometry(cw, ch, cd), dl, place(b.x, ch / 2, b.z, b.rot)));
-    cores.push(prep(gableRoof(cw, cd, rh * 0.9, 0), dl, place(b.x, ch, b.z, b.rot)));
-    for (const side of [1, -1]) {
-      const fz = side * (cd / 2 + 0.03), back = side < 0;
-      // rez-de-chaussée
-      if (!back && b.shop) {
-        const vw = cw - 1.5, vx = -0.45;
-        if (b.target) targetSlots.push({ b, m: loc(b, vx, 1.32, fz), w: vw, h: 1.9, d: 0.08, delay: dl });
-        else pane(b, vx, 1.32, fz, vw, 1.9, COOL.clone().multiplyScalar(0.8 + R() * 0.5), dl);
-        pane(b, cw / 2 - 0.55, 1.1, fz, 0.7, 2.1, DOOR, dl);
-      } else {
-        pane(b, -cw / 2 + 0.85, 1.1, fz, 0.85, 2.1, DOOR, dl);
-        const n = Math.max(1, Math.floor((cw - 1.8) / 1.5));
-        for (let i = 0; i < n; i++) { const x = -cw / 2 + 1.8 + (cw - 1.8) / n * (i + 0.5); pane(b, x, 1.5, fz, 0.78, 1.1, R() < (back ? 0.12 : 0.22) ? warm() : OFF, dl); }
-      }
-      // étages
-      const n = Math.max(1, Math.floor((cw - 0.4) / 1.5));
-      for (let f = 1; f <= b.floors; f++) {
-        const y = 2.6 + (f - 1) * 2.55 + 1.3;
-        if (y + 0.7 > ch) break;
-        for (let i = 0; i < n; i++) {
-          const x = -cw / 2 + cw / n * (i + 0.5), r = R();
-          const col = r < (back ? 0.14 : 0.26) ? warm() : r < (back ? 0.16 : 0.29) ? TV.clone() : OFF;
-          pane(b, x, y, fz, 0.76, 1.2, col, dl);
-        }
-      }
+    b.delay = delayOf(b.x, b.z);
+    const wantTall = b.floors >= 2;
+    let best = null, bs = Infinity;
+    for (const n of b.shop ? SHOPS : HOUSES) {
+      const md = MD[n];
+      const s = Math.abs(Math.log(b.w / md.w)) + Math.abs(Math.log(b.d / md.d)) + (md.tall === wantTall ? 0 : 0.3) + RM() * 0.25;
+      if (s < bs) { bs = s; best = md; }
     }
+    // l'emprise tirée au hasard devient l'échelle du modèle (légère, ±15 % en général)
+    const sx = b.w / best.w, sz = b.d / best.d, sy = Math.min(1.1, Math.max(0.88, Math.sqrt(sx * sz)));
+    b.model = best.name; b.top = best.top * sy;
+    b.m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, 0, b.z), new THREE.Quaternion().setFromAxisAngle(Y, b.rot), new THREE.Vector3(sx, sy, sz));
+    const roofK = 0.86 + RM() * 0.24;
+    items.push({ model: best.name, m: b.m, delay: b.delay, tint: { Mur: pick(WALLS), Volet: pick(SHUTTERS), Porte: b.shop ? pick(FRONTS) : null, roofK } });
   }
-  // église
   {
-    const dl = delayOf(church.x, church.z), c = church;
-    const cb = { x: c.x, z: c.z, rot: c.rot };
-    walls.push(prep(new RoundedBoxGeometry(7.6, 8.5, 16, 2, 0.2), dl, place(c.x, 4.25, c.z, c.rot)));
-    roofs.push(prep(gableRoof(16, 7.6, 4.8, 0.3).rotateY(Math.PI / 2), dl, place(c.x, 8.5, c.z, c.rot)));
-    cores.push(prep(new THREE.BoxGeometry(7.1, 8.2, 15.5), dl, place(c.x, 4.1, c.z, c.rot)));
-    cores.push(prep(gableRoof(15.5, 7.1, 4.4, 0).rotateY(Math.PI / 2), dl, place(c.x, 8.2, c.z, c.rot)));
-    const tower = { x: c.x - Math.sin(c.rot) * 10.4, z: c.z - Math.cos(c.rot) * 10.4, rot: c.rot };
-    walls.push(prep(new RoundedBoxGeometry(4.6, 17, 4.6, 2, 0.2), dl + 0.2, place(tower.x, 8.5, tower.z, c.rot)));
-    cores.push(prep(new THREE.BoxGeometry(4.1, 16.7, 4.1), dl + 0.2, place(tower.x, 8.35, tower.z, c.rot)));
-    const spire = new THREE.ConeGeometry(3.4, 10, 4, 1); spire.rotateY(Math.PI / 4);
-    roofs.push(prep(spire, dl + 0.3, place(tower.x, 22, tower.z, c.rot)));
-    const spc = new THREE.ConeGeometry(3.0, 9.2, 4, 1); spc.rotateY(Math.PI / 4);
-    cores.push(prep(spc, dl + 0.3, place(tower.x, 21.6, tower.z, c.rot)));
-    for (const sd of [1, -1]) {
-      for (let k = -1; k <= 1; k++) pane(cb, sd * 3.59, 4.2, k * 4.6, 0.06, 3.4, new THREE.Color(1.0, 0.8, 0.55).multiplyScalar(1.1), dl);
-      pane(tower, 0, 13.6, sd * 2.08, 1.3, 1.3, new THREE.Color(1.0, 0.86, 0.62).multiplyScalar(2.2), dl + 0.2);
-    }
-    pane(cb, 0, 2.2, 7.78, 1.6, 3.2, new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(1.5), dl);
+    const c = church, dl = delayOf(c.x, c.z);
+    c.m = new THREE.Matrix4().compose(new THREE.Vector3(c.x, 0, c.z), new THREE.Quaternion().setFromAxisAngle(Y, c.rot), S1);
+    items.push({ model: CHURCH, m: c.m, delay: dl, tint: null });
   }
+  const targetSlots = targets.map(b => ({ b, delay: b.delay }));
   // réverbères le long des rues
   roads.forEach((r, ri) => {
     const step = ri === 0 ? 10 : 12;
@@ -287,9 +253,8 @@ export function buildWorld(seed = 7, opts = {}) {
     i++;
   }
 
-  return { B, hero, targets, targetSlots, shops, roads, church,
+  return { B, hero, targets, targetSlots, shops, roads, church, items,
     geo: {
-      walls: mergeGeometries(walls), roofs: mergeGeometries(roofs), cores: mergeGeometries(cores), wins: mergeGeometries(wins),
       lamps: mergeGeometries(lamps), poles: mergeGeometries(poles),
       trees: trees.length ? mergeGeometries(trees) : null, trunks: trunks.length ? mergeGeometries(trunks) : null
     } };
@@ -323,7 +288,7 @@ export function groundTexture(world, size = 2048) {
     g.save(); const [x, y] = P(b.x, b.z); g.translate(x, y); g.rotate(-b.rot);
     g.fillRect((-b.w / 2 - 0.5) * k, (-b.d / 2 - 0.5) * k, (b.w + 1) * k, (b.d + 1) * k); g.restore();
   }
-  { const c = world.church; g.save(); const [x, y] = P(c.x, c.z); g.translate(x, y); g.rotate(-c.rot); g.fillRect(-4.6 * k, -13.5 * k, 9.2 * k, 23 * k); g.restore(); }
+  { const c = world.church; g.save(); const [x, y] = P(c.x, c.z); g.translate(x, y); g.rotate(-c.rot); g.fillRect((-c.w / 2 - 0.3) * k, (-c.d / 2 - 0.3) * k, (c.w + 0.6) * k, (c.d + 0.6) * k); g.restore(); }
   g.restore();
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
@@ -349,17 +314,33 @@ export function withRise(mat, U, key, rim) {
   return mat;
 }
 
-export function glassMaterials(lite) {
-  const wall = new THREE.MeshPhysicalMaterial({
-    color: 0xeef6ff, metalness: 0, roughness: 0.1, transmission: 1, thickness: 0.9, ior: 1.33,
-    attenuationColor: new THREE.Color(0xb6d6f5), attenuationDistance: 30, specularIntensity: 1, envMapIntensity: 1.8
-  });
-  const roof = new THREE.MeshPhysicalMaterial({
-    color: 0xd6e8fb, metalness: 0, roughness: 0.16, transmission: 1, thickness: 0.8, ior: 1.33,
-    attenuationColor: new THREE.Color(0x9cc0e8), attenuationDistance: 24, specularIntensity: 1, envMapIntensity: 1.7
-  });
-  if (lite) for (const m of [wall, roof]) { m.transmission = 0; m.transparent = true; m.opacity = 0.42; m.roughness = 0.25; m.depthWrite = false; }
-  return { wall, roof };
+/* carreaux et vitrines qui s'allument : chaque carreau (attribut aWin) et chaque bâtiment (position de
+   l'instance) tirent leur propre lumière. mode : 'win' maisons, 'church' vitraux, 'shop' vitrines. */
+const GLOW = {
+  win: 'vGlow = r < 0.26 ? vec3(1.0, 0.72, 0.42) * (0.85 + r2 * 0.75) : (r < 0.29 ? vec3(0.45, 0.62, 1.0) : vec3(0.0));',
+  church: 'vGlow = vec3(1.0, 0.8, 0.55) * (1.0 + r2 * 0.5);',
+  shop: 'vGlow = vec3(0.6, 0.78, 1.0) * (0.75 + r2 * 0.5);'
+};
+export function glowMaterial(U, mode) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5a6a80, roughness: 0.3, metalness: 0, envMapIntensity: 0.5 });
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uIntro = U.uIntro;
+    sh.vertexShader = 'attribute float aDelay;\nattribute float aWin;\nuniform float uIntro;\nvarying vec3 vGlow;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float kk = clamp((uIntro - aDelay) / 1.15, 0.0, 1.0);
+      kk = 1.0 - pow(1.0 - kk, 3.0);
+      transformed.y *= max(kk, 0.0001);
+      vec3 ip = vec3(0.0);
+      #ifdef USE_INSTANCING
+        ip = instanceMatrix[3].xyz;
+      #endif
+      float r = fract(sin(aWin * 91.7 + dot(ip.xz, vec2(12.9898, 78.233))) * 43758.5453);
+      float r2 = fract(r * 37.13);
+      ${GLOW[mode]}
+      vGlow *= smoothstep(0.55, 1.0, kk);`);
+    sh.fragmentShader = 'varying vec3 vGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vGlow;');
+  };
+  mat.customProgramCacheKey = () => 'glow-' + mode;
+  return mat;
 }
 
 /* radar au sol */

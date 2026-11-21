@@ -39,7 +39,7 @@ export function initPage() {
     const el = document.createElement('div'); el.className = 'tag';
     el.innerHTML = `<i></i><span><b>${s.b.name}</b><small>${s.b.cat} · aucun site</small></span>`;
     lab.appendChild(el);
-    tags.push({ el, wp: { x: s.b.x, y: s.b.h + s.b.d * 0.45 + 1.2, z: s.b.z }, born: performance.now() });
+    tags.push({ el, wp: { x: s.b.x, y: s.b.top + 1.2, z: s.b.z }, born: performance.now() });
   }
   const out = {};
   function labels(project, y) {
