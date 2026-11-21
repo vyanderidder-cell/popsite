@@ -1,0 +1,108 @@
+/* Devanture — socle commun (accueil + appli) */
+@font-face{font-family:"Big Shoulders";src:url(../fonts/big-shoulders.woff) format("woff");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Instrument Sans";src:url(../fonts/instrument-sans.woff) format("woff");font-weight:400 700;font-stretch:75% 100%;font-display:swap}
+:root{
+  /* Nuit de village : bleu profond, verre givré, lumière de vitrine (commerces sans site), balayage du radar */
+  --night:#070d1a;
+  --night-2:#0c1528;
+  --night-3:#111d35;
+  --line:#1f2d4a;
+  --line-2:#2c3d60;
+  --ivory:#f2eee6;
+  --mist:#9fb0cc;
+  --lamp:#ffb547;
+  --lamp-ink:#1d1203;
+  --scan:#62d2ff;
+  --danger:#ff8f7a;
+  --display:"Big Shoulders","Arial Narrow",sans-serif;
+  --text:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --gutter:clamp(20px,5vw,72px);
+  --r:10px;
+  /* anciens noms, gardés pour l'appli */
+  --amber:var(--lamp);--ice:var(--scan);--mute:var(--mist);--panel:var(--night-2);--mono:var(--text);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--night);color:var(--ivory);font-family:var(--text);font-size:18px;line-height:1.55;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4,p{margin:0}
+h1,h2{font-family:var(--display);font-weight:800;font-variation-settings:"opsz" 72;letter-spacing:-.005em;line-height:.88;text-wrap:balance}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+::selection{background:var(--lamp);color:var(--lamp-ink)}
+:focus-visible{outline:2px solid var(--scan);outline-offset:3px;border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* marque */
+.mark{display:inline-flex;align-items:center;gap:9px;font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:.005em;line-height:1;color:var(--ivory);text-decoration:none}
+.mark i{width:10px;height:13px;border-radius:2px 2px 0 0;background:var(--lamp);box-shadow:0 0 16px 2px rgba(255,181,71,.55)}
+
+/* boutons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:0 24px;border-radius:var(--r);border:1px solid var(--lamp);background:var(--lamp);color:var(--lamp-ink);font-family:var(--text);font-weight:650;font-size:16px;line-height:1;text-decoration:none;cursor:pointer;white-space:nowrap;transition:background-color .2s,border-color .2s,color .2s,transform .2s}
+.btn:hover{background:#ffc66e;border-color:#ffc66e}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--ivory);border-color:var(--line-2)}
+.btn.ghost:hover{border-color:var(--ivory)}
+.btn.small{min-height:40px;padding:0 16px;font-size:15px}
+.btn[disabled]{opacity:.55;cursor:default}
+
+/* petites pastilles de choix */
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line-2);background:rgba(12,21,40,.7);font-size:14px;font-weight:550;color:var(--mist);cursor:pointer;white-space:nowrap;transition:border-color .2s,color .2s,background-color .2s}
+.chip b{color:var(--ivory);font-weight:650}
+.chip:hover{border-color:var(--mist);color:var(--ivory)}
+.chip[aria-pressed="true"]{border-color:var(--lamp);background:rgba(255,181,71,.12);color:var(--lamp)}
+.chip[aria-pressed="true"] b{color:var(--lamp)}
+
+.eyebrow{font-size:14px;font-weight:600;color:var(--scan)}
+.fine{font-size:13.5px;color:var(--mist)}
+.lede{font-size:clamp(18px,1.5vw,21px);color:#cdd7e8;max-width:44ch}
+
+/* onglets */
+.tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{min-height:50px;padding:0 20px;border:0;border-bottom:2px solid transparent;background:none;font-size:15px;font-weight:600;color:var(--mist);cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ivory)}
+.tab[aria-selected="true"]{color:var(--ivory);border-bottom-color:var(--lamp)}
+
+/* questions */
+.faq{display:flex;flex-direction:column;max-width:780px}
+.faq details{border-top:1px solid var(--line)}
+.faq details:last-child{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:20px;align-items:center;padding:22px 0;font-size:clamp(18px,1.7vw,22px);font-weight:600;letter-spacing:-.01em}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"";flex:none;width:14px;height:14px;background:linear-gradient(var(--lamp),var(--lamp)) center/14px 2px no-repeat,linear-gradient(var(--lamp),var(--lamp)) center/2px 14px no-repeat;transition:transform .25s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq p{padding:0 0 24px;color:#cdd7e8;max-width:62ch}
+
+/* script en boutique : vraie séquence, donc numérotée */
+.say{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:22px;counter-reset:say}
+.say li{counter-increment:say;display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:baseline;font-size:clamp(20px,2.1vw,28px);font-weight:550;letter-spacing:-.015em;line-height:1.25}
+.say li::before{content:counter(say);font-family:var(--display);font-weight:800;font-size:30px;line-height:1;color:var(--lamp)}
+.say small{display:block;font-size:15px;font-weight:450;color:var(--mist);margin-top:6px;letter-spacing:0}
+
+/* bloc de prompt */
+.prompt{background:var(--night-2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.prompt header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 12px 18px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;color:var(--mist)}
+.prompt pre{margin:0;padding:20px 18px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13.5px;line-height:1.75;color:#dfe6f2;white-space:pre-wrap;overflow-x:auto}
+.prompt pre em{color:var(--lamp);font-style:normal}
+
+/* offres */
+.plans{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,5fr);gap:18px;align-items:stretch;max-width:920px}
+.plan{border:1px solid var(--line);border-radius:16px;background:rgba(12,21,40,.92);padding:28px;display:flex;flex-direction:column;gap:18px}
+.plan.pro{border-color:rgba(255,181,71,.7);background:linear-gradient(180deg,rgba(255,181,71,.1),rgba(12,21,40,.94) 55%)}
+.plan h3{font-size:17px;font-weight:650;color:var(--mist)}
+.plan.pro h3{color:var(--lamp)}
+.price{font-family:var(--display);font-weight:800;font-size:clamp(52px,6vw,76px);line-height:.9;font-variation-settings:"opsz" 72}
+.price small{font-family:var(--text);font-size:16px;font-weight:500;color:var(--mist)}
+.plan ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;color:#cdd7e8;font-size:16px}
+.plan li{padding-left:24px;position:relative}
+.plan li::before{content:"";position:absolute;left:2px;top:.5em;width:10px;height:6px;border-left:2px solid var(--mist);border-bottom:2px solid var(--mist);transform:rotate(-45deg)}
+.plan.pro li::before{border-color:var(--lamp)}
+.plan .btn{margin-top:auto;align-self:flex-start}
+
+/* cadre de navigateur (maquettes dans l'appli) */
+.bar{display:flex;align-items:center;gap:10px;padding:9px 12px}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#cfc5b0}
+.url{flex:1;border-radius:999px;padding:4px 12px;font-size:12px;min-height:24px}
+.scroll{overflow-x:auto}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}

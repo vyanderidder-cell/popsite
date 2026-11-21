@@ -135,7 +135,7 @@ export function createRadar(canvas, opt = {}) {
     for (let k = 1; k <= 4; k++) { ctx.beginPath(); ctx.arc(cx, cy, R * k / 4, 0, Math.PI * 2); ctx.stroke(); }
     ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.strokeStyle = 'rgba(127,224,255,.07)'; ctx.stroke();
     if (data) {
-      ctx.font = '600 10px "Martian Mono", ui-monospace, monospace'; ctx.fillStyle = 'rgba(147,160,186,.8)';
+      ctx.font = '600 11px "Instrument Sans", system-ui, sans-serif'; ctx.fillStyle = 'rgba(147,160,186,.8)';
       const km = data.radius / 1000;
       ctx.fillText((km < 1 ? Math.round(data.radius) + ' m' : String(+km.toFixed(1)).replace('.', ',') + ' km'), cx + R * .71 + 6, cy - R * .71 - 6);
     }
@@ -150,7 +150,7 @@ export function createRadar(canvas, opt = {}) {
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.stroke();
   }
   function label(txt, x, y) {
-    ctx.font = '700 13px "Bricolage Grotesque", system-ui, sans-serif';
+    ctx.font = '650 13px "Instrument Sans", system-ui, sans-serif';
     const w = ctx.measureText(txt).width + 16, lx = Math.min(W - w - 6, Math.max(6, x + 14)), ly = Math.max(6, y - 32);
     ctx.fillStyle = 'rgba(10,16,29,.94)'; ctx.fillRect(lx, ly, w, 24);
     ctx.fillStyle = AMBER; ctx.fillRect(lx, ly, w, 2);

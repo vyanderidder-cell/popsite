@@ -1,18 +1,24 @@
 Devanture est en ligne : https://popsite-pi.vercel.app
 Chaque push sur GitHub (vyanderidder-cell/popsite, branche main) redéploie le site automatiquement sur Vercel.
 
-Devanture — mettre le site en ligne (gratuit, 2 minutes)
+Comment le site est fait
+- index.html : l'accueil. La ville en 3D est dessinée en temps réel (three.js), rien n'est une vidéo ni une photo.
+- src/landing/ : le code de la scène 3D (village, radar, maquette qui sort de la vitrine).
+  world.js = le village, main.js = caméra + rendu + défilement, page.js = textes et formulaires, mocktex.js = la maquette dessinée.
+- js/landing.min.js : la version compilée de src/landing/. C'est elle que le site charge.
+- js/app/ : l'appli (radar OpenStreetMap, fiches, maquettes, suivi, compte).
+- css/base.css : couleurs, polices, boutons communs. css/landing.css : l'accueil. css/app.css : l'appli.
+- fonts/ : Big Shoulders (titres) et Instrument Sans (texte), hébergées sur le site (licence OFL).
 
-1. Dézippe ce dossier.
-2. Va sur https://app.netlify.com/drop (crée un compte gratuit si besoin).
-3. Glisse le dossier « popsite » entier dans la page.
-4. Netlify te donne une adresse en .netlify.app : ouvre-la, va dans Radar,
-   tape ta ville : la recherche OpenStreetMap marche pour de vrai.
+Modifier la 3D
+1. Change les fichiers dans src/landing/.
+2. Recompile : ./build.sh   (il faut esbuild : npm i -g esbuild, ou ESBUILD="npx esbuild" ./build.sh)
+3. Commit les deux : src/ et js/landing.min.js.
+
+Pour tester une vue précise : ajoute ?still à l'adresse (pas d'intro, caméra calée sur le défilement).
 
 Bon à savoir
 - Les comptes et le suivi sont gardés dans le navigateur (bêta, pas encore de serveur).
 - Le paiement n'est pas branché : active Pro en « mode test » dans Mon compte.
 - Mentions légales : remplace les champs [entre crochets] avant d'ouvrir au public.
-- Partage sur les réseaux : une fois en ligne, remplace dans index.html
-  content="img/og.jpg" par l'adresse complète (ex. https://popsite.netlify.app/img/og.jpg)
-  pour que l'aperçu s'affiche partout.
+- Si un appareil ne gère pas la 3D, l'accueil affiche une image fixe de la ville (img/poster-d.jpg et img/poster-m.jpg).
