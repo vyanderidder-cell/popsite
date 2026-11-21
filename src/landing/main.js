@@ -40,6 +40,7 @@ async function start() {
   const lite = Q.get('q') === 'lite';
   let DPR = Math.min(devicePixelRatio || 1, small ? 1.5 : 1.75);
   if (Q.get('dpr')) DPR = +Q.get('dpr');
+  const DPR0 = DPR;
 
   const renderer = new THREE.WebGLRenderer({ canvas, context: gl2, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(DPR);
@@ -72,7 +73,7 @@ async function start() {
   const moon = new THREE.DirectionalLight(0xbfd0ff, 1.55); moon.position.set(-62, 60, 50); scene.add(moon, moon.target);
   const shadows = !small && !lite && !Q.has('noshadow');
   if (shadows) {
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048);
     const sc = moon.shadow.camera; sc.left = -78; sc.right = 78; sc.top = 78; sc.bottom = -78; sc.near = 10; sc.far = 260;
     moon.shadow.bias = -0.0004; moon.shadow.normalBias = 0.04; moon.shadow.radius = 3;
@@ -161,7 +162,7 @@ async function start() {
   const mockTex = new THREE.CanvasTexture(mockCv); mockTex.colorSpace = THREE.SRGBColorSpace; mockTex.anisotropy = 8; mockTex.generateMipmaps = true;
   const BW = 6.6, BH = BW * MH / MW;
   const mock = new THREE.Group(); scene.add(mock);
-  const slab = new THREE.Mesh(new RoundedBoxGeometry(BW + 0.44, BH + 0.44, 0.16, 3, 0.08), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.06, transmission: 1, thickness: 0.5, ior: 1.45, specularIntensity: 1, envMapIntensity: 1.6 }));
+  const slab = new THREE.Mesh(new RoundedBoxGeometry(BW + 0.44, BH + 0.44, 0.16, 3, 0.08), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.18, transmission: 1, thickness: 0.5, ior: 1.45, specularIntensity: 0.8, envMapIntensity: 1.6 }));
   slab.position.z = -0.14; mock.add(slab);
   const slices = SLICES.map(([y0, y1], i) => {
     const h = (y1 - y0) / MH * BH, g = new THREE.PlaneGeometry(BW, h);
@@ -184,6 +185,15 @@ async function start() {
   const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: small ? 2 : 4 });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
+  // garde-fou HDR : un reflet extrême (Inf/NaN) ne doit jamais noircir l'écran via le bloom
+  const safe = new ShaderPass({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+      float ok(float v){ return (v < 40.0) ? max(v, 0.0) : ((v >= 40.0) ? 40.0 : 0.0); }
+      void main(){ vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(ok(c.r), ok(c.g), ok(c.b), 1.0); }`
+  });
+  composer.addPass(safe);
   const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.5, 1.0);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
@@ -257,7 +267,7 @@ async function start() {
   page.onStyle(s => { style = s; drawMock(mockCv, s); mockTex.needsUpdate = true; });
 
   // qualité adaptative
-  let frames = 0, acc = 0, lastT = performance.now(), slowStreak = 0, running = true;
+  let frames = 0, acc = 0, lastT = performance.now(), lastSeen = performance.now(), slowStreak = 0, running = true;
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmpC = new THREE.Color();
   const snap = Q.has('still');
 
@@ -344,11 +354,14 @@ async function start() {
     composer.render(dt);
 
     // mesure des perfs (on dégrade si ça rame)
-    frames++; acc += dt;
+    if (!document.hidden && now - lastSeen < 400) { frames++; acc += dt; }
+    lastSeen = now;
     if (frames === 50) {
       const avg = acc / frames;
       if (avg > 1 / 34 && DPR > 0.8) { slowStreak++; DPR = Math.max(0.75, DPR - 0.35); resize(); }
       else if (avg > 1 / 34 && bloom.enabled) { bloom.enabled = false; }
+      else if (avg < 1 / 55 && !bloom.enabled) { bloom.enabled = true; }
+      else if (avg < 1 / 55 && DPR < DPR0 - 0.01) { DPR = Math.min(DPR0, DPR + 0.25); resize(); }
       frames = 0; acc = 0;
     }
     if (loader.v < 1) done();
@@ -366,5 +379,5 @@ async function start() {
   function done() { progress(1); setTimeout(() => { document.body.classList.remove('is-loading'); page.reveal(); }, 250); }
   requestAnimationFrame(frame);
   window.__dvKeys = page.keys;
-  window.__dv = { scene, camera, renderer, W, setStyle: s => page.setStyle(s) };
+  window.__dv = { scene, camera, renderer, W, bloom, composer, setStyle: s => page.setStyle(s), setDPR: v => { DPR = v; resize(); } };
 }
